@@ -1,80 +1,57 @@
-# NAEF Docker Deployment
+# NAEF Local Docker Deployment
 
 ## Architecture
 
-Three separate containers simulating three independent institutions:
+Three containers simulating independent institutions on a single machine:
 
 ```
-Institution A (Domain Operator)     Institution B (Verification)     Institution C (Beacon)
-┌─────────────────────────┐        ┌──────────────────────┐        ┌──────────────┐
-│  naef-kda               │        │  naef-vda            │        │  naef-tebs   │
-│  - kda-service          │        │  - vda-service       │        │  - tebs      │
-│  - dsmtp                │        │                      │        │              │
-│  - kda (CLI)            │        │  - vda (CLI)         │        │              │
-└────────┬────────────────┘        └──────────┬───────────┘        └──────┬───────┘
-         │                                    │                           │
-    kda-data/                            vda-data/                   beacon-data/
-         │                                    │                           │
-         └──────── exchange-data ─────────────┘                           │
-                   (KDA writes → VDA reads)                               │
-                                                                          │
-         └──────────────── beacon-data (read-only) ──────────────────────┘
+Container: naef-kda          Container: naef-vda          Container: naef-tebs
+(Domain Operator)            (Verification Authority)     (Trusted Beacon)
+
+  kda-service                  vda-service                  tebs
+  dsmtp                                                    
+
+  kda-data/                    vda-data/                    beacon-data/
+       |                            |                            |
+       +---- exchange-data ---------+                            |
+       |     (KDA writes,                                        |
+       |      VDA reads)                                         |
+       +---------------- beacon-data (read-only) ----------------+
 ```
 
 ## Quick Start
 
-```bash
-# 1. Configure KDA credentials
-cp .env docker/config/kda/.env
-# Edit docker/config/kda/.env with your SES credentials
-
-# 2. Initialize domain (run once before starting services)
-#    This creates NAEF/init.json which the services need
-docker-compose run --rm naef-kda ./kda init example.com 30 naef._domainkey.example.com 5 3
-
-# 3. Start all services
+```
+docker-compose build
 docker-compose up -d
-
-# 4. View logs
-docker-compose logs -f naef-tebs    # Beacon service
-docker-compose logs -f naef-kda     # KDA service
-docker-compose logs -f naef-vda     # VDA service
-
-# 5. Send a DKIM-signed email (from KDA container)
-docker-compose exec naef-kda ./dsmtp SendMail example.com 30 recipient@gmail.com --api
-
-# 6. Stop all services
-docker-compose down
+docker-compose exec naef-kda ./kda init <domain> <epoch_interval> <selector> [num_fragments] [fah]
 ```
 
 ## Volumes
 
-| Volume | Owner | Purpose |
-|--------|-------|---------|
-| kda-data | KDA | Private keys, fragments, DSMTP configs |
+| Volume | Owner | Description |
+|--------|-------|-------------|
+| kda-data | KDA | Private keys, fragments, DSMTP signing material |
 | vda-data | VDA | Decrypted fragments, reconstructed keys |
-| exchange-data | KDA→VDA | Disclosure artifacts (fdr, ebr, dpr, epr, kdr) |
-| beacon-data | TEBS | Beacon log, shared read-only with KDA |
+| exchange-data | KDA to VDA | Disclosure artifacts (read-only for VDA) |
+| beacon-data | TEBS | Beacon log (read-only for KDA) |
 
-## Environment Variables
+## Commands
 
-### TEBS
-- `TEBS_MU` - Beacon interval in seconds (default: 5)
+```
+docker-compose logs -f naef-tebs
+docker-compose logs -f naef-kda
+docker-compose logs -f naef-vda
 
-### KDA
-- All SES/SMTP variables from `.env`
-- `AWS_ACCESS_KEY_ID` - For SES API mode
-- `AWS_SECRET_ACCESS_KEY` - For SES API mode
+docker-compose exec naef-kda ./kda <command>
+docker-compose exec naef-kda ./dsmtp <command>
+docker-compose exec naef-vda ./vda <command>
 
-## Production Deployment
+docker-compose down
+```
 
-Replace shared volumes with:
-- `exchange-data` → S3 bucket or REST API
-- `beacon-data` → Public TEBS HTTP API
-- `kda-data` → EFS or local SSD
-- `vda-data` → EFS or local SSD
+## Notes
 
-Each container can be deployed to separate AWS accounts/regions:
-- TEBS → Public ECS Fargate task
-- KDA → Domain operator's AWS account (ECS/EC2)
-- VDA → Verification authority's AWS account (ECS/EC2)
+- The local deployment uses shared Docker volumes to simulate inter-service communication.
+- In production, replace shared volumes with S3 buckets. See `deploy/README.md`.
+- No HTTP or RPC communication exists between services. All communication is file-based.
