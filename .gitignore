@@ -29,3 +29,7 @@ deploy/vda/.env
 
 # OS files
 .DS_Store
+
+# Credentials
+credentials.imp
+*.imp
