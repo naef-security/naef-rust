@@ -1,0 +1,31 @@
+target/
+NAEF/
+*.log
+*.csv
+*.bin
+*.pem
+.env
+.env.bak
+commitment.txt
+signature.txt
+permute.txt
+generate_keys.rs
+tebs_beacon.txt
+tebs_mu.txt
+tebs_pubkey.hex
+tebs_key.bin
+kda.csv
+vda.csv
+
+# Docker config with secrets
+docker/config/kda/.env
+docker/config/vda/.env
+deploy/tebs/.env
+deploy/kda/.env
+deploy/vda/.env
+
+# Keep examples
+!*.env.example
+
+# OS files
+.DS_Store

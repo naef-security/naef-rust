@@ -1,0 +1,18 @@
+services:
+  naef-vda:
+    build:
+      context: ../../
+      target: naef-vda
+    container_name: naef-vda
+    environment:
+      - NAEF_MODE=s3
+      - S3_EXCHANGE_BUCKET=${S3_EXCHANGE_BUCKET:-naef-exchange}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+    volumes:
+      - vda-data:/app/NAEF
+    restart: unless-stopped
+
+volumes:
+  vda-data:

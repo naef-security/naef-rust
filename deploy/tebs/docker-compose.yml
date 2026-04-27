@@ -1,0 +1,19 @@
+services:
+  naef-tebs:
+    build:
+      context: ../../
+      target: naef-tebs
+    container_name: naef-tebs
+    environment:
+      - TEBS_MU=${TEBS_MU:-5}
+      - NAEF_MODE=s3
+      - S3_BEACON_BUCKET=${S3_BEACON_BUCKET:-naef-beacon}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+    volumes:
+      - tebs-data:/app/beacon
+    restart: unless-stopped
+
+volumes:
+  tebs-data:

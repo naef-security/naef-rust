@@ -1,0 +1,7 @@
+target/
+NAEF/
+*.log
+*.csv
+*.bin
+!.env
+.git/

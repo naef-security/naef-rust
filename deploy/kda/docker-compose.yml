@@ -1,0 +1,19 @@
+services:
+  naef-kda:
+    build:
+      context: ../../
+      target: naef-kda
+    container_name: naef-kda
+    environment:
+      - NAEF_MODE=s3
+      - S3_BEACON_BUCKET=${S3_BEACON_BUCKET:-naef-beacon}
+      - S3_EXCHANGE_BUCKET=${S3_EXCHANGE_BUCKET:-naef-exchange}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+    volumes:
+      - kda-data:/app/NAEF
+    restart: unless-stopped
+
+volumes:
+  kda-data:

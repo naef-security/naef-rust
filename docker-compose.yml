@@ -1,0 +1,40 @@
+services:
+  naef-tebs:
+    build:
+      context: .
+      target: naef-tebs
+    container_name: naef-tebs
+    environment:
+      - TEBS_MU=${TEBS_MU:-5}
+    volumes:
+      - beacon-data:/app/beacon
+    restart: unless-stopped
+
+  naef-kda:
+    build:
+      context: .
+      target: naef-kda
+    container_name: naef-kda
+    depends_on:
+      - naef-tebs
+    volumes:
+      - kda-data:/app/NAEF
+      - exchange-data:/app/exchange
+      - beacon-data:/app/beacon:ro
+    restart: unless-stopped
+
+  naef-vda:
+    build:
+      context: .
+      target: naef-vda
+    container_name: naef-vda
+    volumes:
+      - vda-data:/app/NAEF
+      - exchange-data:/app/exchange:ro
+    restart: unless-stopped
+
+volumes:
+  kda-data:
+  vda-data:
+  exchange-data:
+  beacon-data:

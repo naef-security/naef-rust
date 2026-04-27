@@ -1,0 +1,58 @@
+[package]
+name = "mailmonitor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "kda"
+path = "src/kda.rs"
+
+[[bin]]
+name = "vda"
+path = "src/vda.rs"
+
+[[bin]]
+name = "tebs"
+path = "src/tebs.rs"
+
+[[bin]]
+name = "kda-service"
+path = "src/kda_service.rs"
+
+[[bin]]
+name = "vda-service"
+path = "src/vda_service.rs"
+
+[[bin]]
+name = "dsmtp"
+path = "src/dsmtp.rs"
+
+[dependencies]
+# Crypto
+aes = "0.8"
+cbc = "0.1"
+sha2 = { version = "0.10", features = ["oid"] }
+sha3 = "0.10"
+rand = "0.8"
+hex = "0.4"
+num-bigint = "0.4"
+num-traits = "0.2"
+rsa = "0.9"
+ed25519-dalek = "2.1"
+
+# ML-KEM (Kyber) - Using pqc_kyber which has proper serialization
+pqc_kyber = "0.7"
+
+# Email
+lettre = "0.11"
+imap = "2.4"
+native-tls = "0.2"
+mailparse = "0.15"
+
+# Utilities
+dotenv = "0.15"
+indicatif = "0.17"
+ctrlc = "3.4"
+reqwest = { version = "0.12", features = ["blocking"] }
+hmac = "0.12"
+chrono = "0.4"
