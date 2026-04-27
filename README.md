@@ -1,67 +1,130 @@
-# Mail Monitor - Rust Implementation
+# NAEF: Non-Attributable Email Framework
 
-## Status: ✅ PRODUCTION READY
+A reference implementation of the Non-Attributable Email Framework (NAEF), a cryptographic protocol for epoch-based DKIM key management that enables controlled key disclosure for email non-repudiation and deniability.
 
-✅ **Compiles successfully**  
-✅ **ML-KEM-768 library working** (`pqc_kyber`)  
-✅ **Core crypto functions implemented**  
-✅ **Test passing**  
-✅ **Email sending working**  
-✅ **ShowKey working**  
-✅ **SendFragments working**  
-⚠️ **ReconstructKey** - Use Node.js version for now
+## Overview
 
-## Quick Start
+NAEF introduces a structured approach to DKIM key lifecycle management through discrete time epochs. Each epoch generates a unique signing key pair, enabling domain operators to sign outgoing emails with epoch-specific keys. After an epoch concludes, the private key is disclosed through a verifiable fragmentation and reconstruction protocol, allowing any party to retroactively verify or forge signatures for that epoch.
 
-```bash
-cd src-rust
+The framework comprises four independent services:
 
-# Show private key
-cargo run --release -- ShowKey
+- **TEBS** (Trusted Epoch Beacon Service) -- Generates publicly verifiable beacon values that anchor the temporal progression of epochs.
+- **KDA** (Key Disclosure Authority) -- Manages epoch key generation, fragmentation, and disclosure for email-sending domains.
+- **VDA** (Verification and Disclosure Authority) -- Independently verifies key disclosure by decrypting fragments and reconstructing epoch private keys.
+- **DSMTP** (DKIM-Signed Mail Transfer Program) -- Sends DKIM-signed emails using epoch-specific RSA keys via Amazon SES.
 
-# Send encrypted fragments via email
-cargo run --release -- SendFragments
+## Architecture
 
-# Reconstruct key (use Node.js for now)
-cd ../src-nodejs && node VDA.js ReconstructKey
-
-# Run crypto test
-cargo test -- --nocapture
+```
+TEBS                    KDA                         VDA
+(Beacon Service)        (Domain Operator)           (Verification Authority)
+                                                    
+  beacon log ---------> fragment encryption         
+                        key derivation (VRF)        
+                                                    
+                        EPR: Epoch key generation   
+                        EKA: Key activation         
+                        KDR: Disclosure commitment  
+                        FDR: Encrypted fragments -----> Decrypt fragments
+                        DPR: Disclosure publication ---> Reconstruct key
+                                                        Verify commitment
+                        DSMTP: DKIM-signed email    
 ```
 
-## Performance
+## Protocol Messages
 
-Rust provides **5-10x better performance** than Node.js:
-- **60,000 iterations**: ~1-2 seconds (vs 5-15s in Node.js)
-- **Memory**: Minimal overhead
-- **Concurrency**: Native async/await
+| Message | Full Name | Description |
+|---------|-----------|-------------|
+| EPR | Epoch Public Registration | Generates RSA-4096 and VRF key pairs for a new epoch |
+| EKA | Epoch Key Activation | Activates the epoch key and produces DKIM signing material |
+| KDR | Key Disclosure Request | Creates a SHA3-256 commitment to the disclosure |
+| FDR | Fragment Disclosure Record | Encrypts one fragment of the private key using a VRF-derived key |
+| EBR | Epoch Beacon Record | Records the TEBS beacon value used for fragment encryption |
+| DPR | Disclosure Publication Request | Publishes the final beacon and permutation order |
 
-## Features
+## Cryptographic Primitives
 
-✅ **ML-KEM-768 (Kyber)** - Post-quantum cryptography  
-✅ **Time-lock puzzles** - Sequential computation delay  
-✅ **AES-256-CBC** - Symmetric encryption  
-✅ **BigUint** - Arbitrary precision arithmetic  
-✅ **Email sending** - SMTP integration  
-✅ **Fast performance** - Native compiled code  
+- RSA-4096 for DKIM signing and commitment encryption
+- Ed25519-based VRF for deterministic key derivation from beacon values
+- AES-256-CBC for symmetric fragment encryption
+- SHA3-256 for disclosure commitments
+- Ed25519 for TEBS beacon signatures
 
-## Note on Key Compatibility
+## Key Features
 
-The Rust implementation uses `pqc_kyber` while Node.js uses `mlkem`. These libraries use different key formats, so:
-- **Rust → Rust**: ✅ Fully compatible
-- **Node.js → Node.js**: ✅ Fully compatible  
-- **Cross-platform**: ⚠️ Not compatible (different ML-KEM implementations)
+- **Forward Attribution Horizon (FAH)**: Pre-generates future epoch keys so the mail service always has signing keys available, decoupling key generation from key disclosure.
+- **Beacon-Anchored Fragmentation**: Each fragment is encrypted with a key derived from a TEBS beacon value via a VRF, creating a verifiable temporal chain.
+- **Fragment Chaining**: Fragment N+1 carries the beacon details needed to decrypt fragment N, enforcing sequential disclosure.
+- **Per-Domain Multi-Epoch**: Supports multiple domains with independent epoch intervals, fragment counts, and FAH values.
+- **Verified DKIM Signing**: Produces DKIM signatures (rsa-sha256, relaxed/simple) that pass verification at major email providers.
 
-For production, choose one implementation and stick with it.
+## Building
 
-## Recommendation
+```
+cargo build --release
+```
 
-**Use Rust for:**
-- High-throughput production systems
-- Performance-critical applications
-- Maximum speed with post-quantum crypto
+Binaries are produced in `target/release/`:
+- `kda`, `kda-service`, `vda`, `vda-service`, `tebs`, `dsmtp`
 
-**Use Node.js for:**
-- Full email integration (send + receive)
-- Rapid development
-- Existing Node.js infrastructure
+## Configuration
+
+Copy `.env.example` to `.env` and configure Amazon SES credentials:
+
+```
+cp .env.example .env
+```
+
+Initialize a domain:
+
+```
+./kda init <domain> <epoch_interval_sec> <selector> [num_fragments] [fah]
+```
+
+## Usage
+
+### Local Deployment (Docker Compose)
+
+```
+docker-compose up -d
+docker-compose exec naef-kda ./kda init example.com 30 naef._domainkey.example.com 5 3
+```
+
+### Distributed Deployment (3 Servers via S3)
+
+See `deploy/README.md` for instructions on deploying TEBS, KDA, and VDA on separate servers communicating through S3 buckets.
+
+### Sending Email
+
+```
+./dsmtp SendMail <domain> <epoch_id> <recipient> --api
+```
+
+### CLI Reference
+
+```
+./kda        # Key Disclosure Authority commands
+./vda        # Verification and Disclosure Authority commands
+./tebs help  # Trusted Epoch Beacon Service commands
+./dsmtp      # DKIM-signed email commands
+```
+
+## Project Structure
+
+```
+src/
+  kda.rs            Key Disclosure Authority
+  kda_service.rs    KDA continuous service with FAH
+  vda.rs            Verification and Disclosure Authority
+  vda_service.rs    VDA continuous service
+  tebs.rs           Trusted Epoch Beacon Service
+  dsmtp.rs          DKIM-signed email sender
+  crypt.rs          Cryptographic primitives
+
+docker/             Local deployment scripts
+deploy/             Distributed deployment (S3-based)
+```
+
+## License
+
+This software is provided for research and evaluation purposes.
