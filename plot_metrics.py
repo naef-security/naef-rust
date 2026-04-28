@@ -142,7 +142,7 @@ def main():
     ax.set_xticks(x)
     ax.set_xticklabels([f'n={nf}' for nf in frag_configs])
     ax.set_xlabel('Fragment Count')
-    ax.set_ylabel('Mean Latency (ms)')
+    ax.set_ylabel('Mean Processing Time (ms)')
     ax.set_title('(a) KDA Epoch Cost by Fragment Count')
     ax.legend(fontsize=6)
     ax.grid(True, alpha=0.2, axis='y')
@@ -178,7 +178,7 @@ def main():
     ax.set_xticks(x)
     ax.set_xticklabels([f'n={nf}' for nf in vda_fcs])
     ax.set_xlabel('Fragment Count')
-    ax.set_ylabel('Mean Total Latency (ms)')
+    ax.set_ylabel('Mean Total Processing Time (ms)')
     ax.set_title('(b) VDA Reconstruction Cost')
     ax.legend(fontsize=6)
     ax.grid(True, alpha=0.2, axis='y')
@@ -192,9 +192,9 @@ def main():
     for i, (op, label) in enumerate(zip(kda_cdf_ops, kda_cdf_labels)):
         vals = get_vals(kda, [], op)
         plot_cdf(ax, vals, COLORS[i], label)
-    ax.set_xlabel('Latency (ms)')
+    ax.set_xlabel('Processing Time (ms)')
     ax.set_ylabel('CDF')
-    ax.set_title('(c) CDF: KDA Operation Latency')
+    ax.set_title('(c) CDF: KDA Processing Time')
     ax.legend(loc='lower right', fontsize=7)
     ax.grid(True, alpha=0.2)
 
@@ -207,9 +207,9 @@ def main():
     for i, (op, label) in enumerate(zip(vda_cdf_ops, vda_cdf_labels)):
         vals = get_vals([], vda, op)
         plot_cdf(ax, vals, COLORS[i + 4], label)
-    ax.set_xlabel('Latency (ms)')
+    ax.set_xlabel('Processing Time (ms)')
     ax.set_ylabel('CDF')
-    ax.set_title('(d) CDF: VDA Operation Latency')
+    ax.set_title('(d) CDF: VDA Processing Time')
     ax.legend(loc='lower right', fontsize=7)
     ax.grid(True, alpha=0.2)
 
@@ -291,8 +291,10 @@ def main():
         ax.bar(x, kt, label='KDA (fragmentation)', color='#2196F3', alpha=0.8)
         ax.bar(x, vt, bottom=kt, label='VDA (reconstruction)', color='#4CAF50', alpha=0.8)
         ax.legend(fontsize=6)
-        ax.set_xticks([])
-    ax.set_xlabel('Epochs (chronological)')
+        step = max(1, len(common) // 10)
+        ax.set_xticks(x[::step])
+        ax.set_xticklabels([str(i+1) for i in x[::step]])
+    ax.set_xlabel('Epoch Index')
     ax.set_ylabel('Total Processing Time (ms)')
     ax.set_title('(g) KDA vs VDA Processing per Epoch')
     ax.grid(True, alpha=0.2, axis='y')
@@ -306,9 +308,12 @@ def main():
         if norm(d['operation']) not in ('epr', 'epoch_total') and not d['operation'].startswith('fah_'):
             kda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
     vda_ep = defaultdict(float)
+    vda_complete = set()
     for d in vda:
         vda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
-    common = set(kda_ep.keys()) & set(vda_ep.keys())
+        if d['operation'] == 'verify_commit':
+            vda_complete.add((d['domain'], d['epoch_id']))
+    common = set(kda_ep.keys()) & vda_complete
     if common:
         combined = [kda_ep[k] + vda_ep[k] for k in common]
         plot_cdf(ax, combined, '#9C27B0', 'KDA + VDA')
