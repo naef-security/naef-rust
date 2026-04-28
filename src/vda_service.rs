@@ -1,12 +1,15 @@
 use std::process::Command;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::collections::HashSet;
+use std::fs::OpenOptions;
+use std::io::Write;
 
 const INIT_PATH: &str = "NAEF/init.json";
+const METRICS_DIR: &str = "NAEF/metrics";
 
 struct DomainConfig {
     domain: String,
@@ -27,6 +30,37 @@ fn log_domain(domain: &str, msg: &str) {
 
 fn log_global(msg: &str) {
     println!("[{}] {}", timestamp(), msg);
+}
+
+fn write_metric(domain: &str, epoch_id: &str, operation: &str, duration_ms: f64, num_fragments: usize) {
+    std::fs::create_dir_all(METRICS_DIR).ok();
+    let path = format!("{}/vda_metrics.csv", METRICS_DIR);
+    let needs_header = !std::path::Path::new(&path).exists();
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .expect("Failed to open metrics file");
+    if needs_header {
+        writeln!(file, "timestamp,domain,epoch_id,operation,duration_ms,num_fragments").ok();
+    }
+    writeln!(file, "{},{},{},{},{:.3},{}", timestamp(), domain, epoch_id, operation, duration_ms, num_fragments).ok();
+}
+
+fn write_epoch_metric(domain: &str, epoch_id: &str, decrypt_total_ms: f64, reconstruct_ms: f64, verify_ms: f64, total_ms: f64, num_fragments: usize) {
+    std::fs::create_dir_all(METRICS_DIR).ok();
+    let path = format!("{}/vda_epoch_metrics.csv", METRICS_DIR);
+    let needs_header = !std::path::Path::new(&path).exists();
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .expect("Failed to open epoch metrics file");
+    if needs_header {
+        writeln!(file, "timestamp,domain,epoch_id,decrypt_total_ms,reconstruct_ms,verify_ms,epoch_total_ms,num_fragments").ok();
+    }
+    writeln!(file, "{},{},{},{:.3},{:.3},{:.3},{:.3},{}", 
+        timestamp(), domain, epoch_id, decrypt_total_ms, reconstruct_ms, verify_ms, total_ms, num_fragments).ok();
 }
 
 fn read_all_domains() -> Vec<DomainConfig> {
@@ -106,6 +140,13 @@ fn run_vda(args: &[&str]) -> String {
     stdout
 }
 
+fn run_vda_timed(args: &[&str]) -> (String, f64) {
+    let start = Instant::now();
+    let out = run_vda(args);
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    (out, ms)
+}
+
 fn run_domain(domain: String, num_fragments: usize, running: Arc<AtomicBool>) {
     log_domain(&domain, &format!("Thread started (num_fragments={})", num_fragments));
 
@@ -125,7 +166,6 @@ fn run_domain(domain: String, num_fragments: usize, running: Arc<AtomicBool>) {
             let epoch_id_str = epoch_id.to_string();
             let epoch_folder = format!("NAEF/{}/{}", domain.replace('.', "_"), epoch_id);
 
-            // Skip verified epochs
             if file_exists(&format!("{}/verified.txt", epoch_folder)) {
                 continue;
             }
@@ -133,7 +173,7 @@ fn run_domain(domain: String, num_fragments: usize, running: Arc<AtomicBool>) {
             let fdr_count = count_files(&epoch_folder, "fdr", num_fragments);
             let decrypt_count = count_files(&epoch_folder, "decrypt", num_fragments);
 
-            // Try to decrypt next fragment
+            // Decrypt next fragment
             if decrypt_count < num_fragments {
                 let next_seq = decrypt_count + 1;
 
@@ -160,14 +200,15 @@ fn run_domain(domain: String, num_fragments: usize, running: Arc<AtomicBool>) {
                     log(&domain, &epoch_id_str,
                         &format!("Decrypting fragment {}/{} (vrf_output from {})",
                             next_seq, num_fragments, source));
-                    let out = run_vda(&["decrypt", &domain, &epoch_id_str]);
+                    let (out, ms) = run_vda_timed(&["decrypt", &domain, &epoch_id_str]);
                     print!("  {}", out);
+                    write_metric(&domain, &epoch_id_str, &format!("decrypt_{}", next_seq), ms, num_fragments);
 
                     let new_decrypt = count_files(&epoch_folder, "decrypt", num_fragments);
                     if new_decrypt > decrypt_count {
                         log(&domain, &epoch_id_str,
-                            &format!("Fragment {} decrypted successfully ({}/{})",
-                                next_seq, new_decrypt, num_fragments));
+                            &format!("Fragment {} decrypted ({:.1}ms, {}/{})",
+                                next_seq, ms, new_decrypt, num_fragments));
                     }
                     continue;
                 } else {
@@ -177,47 +218,48 @@ fn run_domain(domain: String, num_fragments: usize, running: Arc<AtomicBool>) {
                         "dpr.txt".to_string()
                     };
                     log(&domain, &epoch_id_str,
-                        &format!("Cannot decrypt fdr_{} - waiting for {} ({}/{} decrypted)",
+                        &format!("Cannot decrypt fdr_{} - waiting for {} ({}/{})",
                             next_seq, needed, decrypt_count, num_fragments));
                     continue;
                 }
             }
 
-            // All decrypted → Reconstruct
+            // Reconstruct
             if decrypt_count == num_fragments
                 && !file_exists(&format!("{}/recon.txt", epoch_folder))
                 && file_exists(&format!("{}/dpr.txt", epoch_folder))
             {
                 any_work = true;
                 log(&domain, &epoch_id_str,
-                    &format!("All {}/{} fragments decrypted. Reconstructing private key from dpr.txt permutation...",
-                        decrypt_count, num_fragments));
-                let out = run_vda(&["reconstruct", &domain, &epoch_id_str]);
+                    &format!("All {}/{} decrypted. Reconstructing...", decrypt_count, num_fragments));
+                let (out, ms) = run_vda_timed(&["reconstruct", &domain, &epoch_id_str]);
                 print!("  {}", out);
+                write_metric(&domain, &epoch_id_str, "reconstruct", ms, num_fragments);
 
                 if file_exists(&format!("{}/recon.txt", epoch_folder)) {
-                    log(&domain, &epoch_id_str, "Private key reconstructed successfully.");
+                    log(&domain, &epoch_id_str, &format!("Reconstructed ({:.1}ms)", ms));
                 } else {
                     log(&domain, &epoch_id_str, "ERROR: Reconstruction failed.");
                 }
                 continue;
             }
 
-            // Reconstructed → VerifyCommit
+            // VerifyCommit
             if file_exists(&format!("{}/recon.txt", epoch_folder))
                 && file_exists(&format!("{}/commitment.txt", epoch_folder))
                 && !file_exists(&format!("{}/verified.txt", epoch_folder))
             {
                 any_work = true;
-                log(&domain, &epoch_id_str, "Running VerifyCommit (recon.txt + commitment.txt)...");
-                let out = run_vda(&["VerifyCommit", &domain, &epoch_id_str]);
+                log(&domain, &epoch_id_str, "Running VerifyCommit...");
+                let (out, ms) = run_vda_timed(&["VerifyCommit", &domain, &epoch_id_str]);
                 print!("  {}", out);
+                write_metric(&domain, &epoch_id_str, "verify_commit", ms, num_fragments);
 
                 std::fs::write(
                     format!("{}/verified.txt", epoch_folder),
                     format!("verified_at: {}\n", timestamp())
                 ).ok();
-                log(&domain, &epoch_id_str, "✓ Epoch verification COMPLETE.");
+                log(&domain, &epoch_id_str, &format!("Epoch verification COMPLETE ({:.1}ms)", ms));
                 println!();
             }
         }
@@ -240,8 +282,9 @@ fn main() {
         r.store(false, Ordering::SeqCst);
     }).expect("Failed to set Ctrl+C handler");
 
-    log_global("=== VDA Service Started ===");
+    log_global("=== VDA Service Started (with metrics) ===");
     log_global(&format!("Config file: {}", INIT_PATH));
+    log_global(&format!("Metrics dir: {}", METRICS_DIR));
     log_global("Press Ctrl+C to stop gracefully.");
     println!();
 
