@@ -1,0 +1,352 @@
+[
+  {
+    "domain": "domain001.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain001.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain002.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain002.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain003.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain003.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain004.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain004.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain005.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain005.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain006.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain006.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain007.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain007.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain008.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain008.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain009.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain009.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain010.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain010.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain011.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain011.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain012.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain012.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain013.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain013.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain014.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain014.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain015.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain015.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain016.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain016.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain017.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain017.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain018.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain018.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain019.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain019.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain020.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain020.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain021.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain021.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain022.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain022.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain023.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain023.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain024.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain024.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain025.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain025.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain026.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain026.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain027.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain027.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain028.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain028.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain029.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain029.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain030.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain030.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain031.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain031.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain032.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain032.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain033.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain033.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain034.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain034.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain035.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain035.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain036.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain036.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain037.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain037.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain038.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain038.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain039.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain039.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain040.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain040.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain041.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain041.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain042.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain042.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain043.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain043.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain044.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain044.test",
+    "num_fragments": "7",
+    "fah": "3"
+  },
+  {
+    "domain": "domain045.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain045.test",
+    "num_fragments": "10",
+    "fah": "5"
+  },
+  {
+    "domain": "domain046.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain046.test",
+    "num_fragments": "12",
+    "fah": "3"
+  },
+  {
+    "domain": "domain047.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain047.test",
+    "num_fragments": "15",
+    "fah": "5"
+  },
+  {
+    "domain": "domain048.test",
+    "epoch_interval": "60",
+    "selector": "naef._domainkey.domain048.test",
+    "num_fragments": "3",
+    "fah": "3"
+  },
+  {
+    "domain": "domain049.test",
+    "epoch_interval": "90",
+    "selector": "naef._domainkey.domain049.test",
+    "num_fragments": "5",
+    "fah": "5"
+  },
+  {
+    "domain": "domain050.test",
+    "epoch_interval": "120",
+    "selector": "naef._domainkey.domain050.test",
+    "num_fragments": "7",
+    "fah": "3"
+  }
+]

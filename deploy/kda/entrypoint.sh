@@ -4,6 +4,13 @@ echo "Beacon: s3://${S3_BEACON_BUCKET:-naef-beacon}"
 echo "Exchange: s3://${S3_EXCHANGE_BUCKET:-naef-exchange}"
 echo ""
 
+# Copy init.json into volume if not already present
+if [ ! -f /app/NAEF/init.json ] && [ -f /app/init_50.json ]; then
+    mkdir -p /app/NAEF
+    cp /app/init_50.json /app/NAEF/init.json
+    echo "Copied init_50.json -> NAEF/init.json"
+fi
+
 # Start S3 sync in background
 /app/sync.sh &
 SYNC_PID=$!
