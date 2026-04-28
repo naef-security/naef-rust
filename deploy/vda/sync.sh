@@ -40,5 +40,10 @@ while true; do
         done
     done
 
+    # Upload VDA metrics to S3
+    if [ -d "$NAEF_DIR/metrics" ]; then
+        aws s3 sync "$NAEF_DIR/metrics/" "s3://${EXCHANGE_BUCKET}/metrics/" --quiet 2>/dev/null
+    fi
+
     sleep 2
 done
