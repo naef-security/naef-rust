@@ -228,24 +228,37 @@ fn get_oldest_undisclosed_epoch(domain: &str) -> Option<u64> {
 
 fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>) {
     let fragment_interval = epoch_interval / num_fragments as u64;
+    let target_epochs = run_duration.map(|dur| dur.as_secs() / epoch_interval);
 
     log_domain(&domain, &format!(
-        "Thread started (epoch_interval={}s, num_fragments={}, fragment_interval={}s, fah={})",
-        epoch_interval, num_fragments, fragment_interval, fah));
+        "Thread started (epoch_interval={}s, num_fragments={}, fragment_interval={}s, fah={}, target_epochs={})",
+        epoch_interval, num_fragments, fragment_interval, fah,
+        target_epochs.map(|t| t.to_string()).unwrap_or("unlimited".to_string())));
 
     ensure_fah_epochs(&domain, fah, num_fragments);
 
+    let mut completed_epochs: u64 = 0;
+
     while running.load(Ordering::SeqCst) {
-        if let Some(dur) = run_duration {
-            if start_time.elapsed() >= dur {
-                log_domain(&domain, &format!("Run duration ({:.0}min) reached. Stopping.", dur.as_secs_f64() / 60.0));
-                break;
-            }
-        }
+        let target_reached = target_epochs.map(|t| completed_epochs >= t).unwrap_or(false);
 
         let epoch_id = match get_oldest_undisclosed_epoch(&domain) {
-            Some(eid) => eid,
+            Some(eid) => {
+                if target_reached {
+                    let ef = format!("NAEF/{}/{}", domain.replace('.', "_"), eid);
+                    let has_kdr = file_exists(&format!("{}/kdr.txt", ef));
+                    if !has_kdr {
+                        log_domain(&domain, &format!("Target reached ({}/{} epochs). Stopping.", completed_epochs, target_epochs.unwrap()));
+                        break;
+                    }
+                }
+                eid
+            }
             None => {
+                if target_reached {
+                    log_domain(&domain, &format!("Target reached ({}/{} epochs). Stopping.", completed_epochs, target_epochs.unwrap()));
+                    break;
+                }
                 log_domain(&domain, "No undisclosed epochs. Creating new epoch...");
                 let out = run_kda(&["epr", &domain]);
                 print!("  {}", out);
@@ -317,14 +330,21 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
             write_metric(&domain, &epoch_id_str, "epoch_total", epoch_total_ms, num_fragments, fah);
 
             log(&domain, &epoch_id_str, &format!(
-                "Epoch disclosure COMPLETE (dpr={:.1}ms, total={:.1}ms)", dpr_ms, epoch_total_ms));
-            log_domain(&domain, "Maintaining Forward Attribution Horizon...");
-            ensure_fah_epochs(&domain, fah, num_fragments);
+                "Epoch disclosure COMPLETE ({}/{}) (dpr={:.1}ms, total={:.1}ms)",
+                completed_epochs + 1, target_epochs.map(|t| t.to_string()).unwrap_or("∞".to_string()),
+                dpr_ms, epoch_total_ms));
+            completed_epochs += 1;
+            if !target_reached {
+                log_domain(&domain, "Maintaining Forward Attribution Horizon...");
+                ensure_fah_epochs(&domain, fah, num_fragments);
+            }
             println!();
             continue;
         }
 
-        ensure_fah_epochs(&domain, fah, num_fragments);
+        if !target_reached {
+            ensure_fah_epochs(&domain, fah, num_fragments);
+        }
         thread::sleep(Duration::from_secs(1));
     }
 
@@ -361,13 +381,6 @@ fn main() {
 
     loop {
         if !running.load(Ordering::SeqCst) { break; }
-        if let Some(dur) = run_duration {
-            if start_time.elapsed() >= dur {
-                log_global(&format!("=== Run duration ({} min) reached. Shutting down all threads... ===", dur.as_secs() / 60));
-                running.store(false, Ordering::SeqCst);
-                break;
-            }
-        }
 
         let domains = read_all_domains();
 
@@ -390,6 +403,16 @@ fn main() {
                     run_domain(domain, ei, nf, fah, r, st, rd);
                 });
                 handles.push(handle);
+            }
+        }
+
+        // If all domains spawned and run_duration set, wait for threads to finish
+        if run_duration.is_some() && active_domains.len() >= read_all_domains().len() && !handles.is_empty() {
+            // Check if all threads have finished
+            let all_done = handles.iter().all(|h| h.is_finished());
+            if all_done {
+                log_global("All domain threads completed their epoch targets.");
+                break;
             }
         }
 
