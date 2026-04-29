@@ -11,6 +11,7 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-ap-south-1}
+      - NAEF_RUN_DURATION=${NAEF_RUN_DURATION:-}
     volumes:
       - kda-data:/app/NAEF
     restart: unless-stopped

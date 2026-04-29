@@ -141,9 +141,9 @@ def main():
         bottom += np.array(bar_d[op])
     ax.set_xticks(x)
     ax.set_xticklabels([f'n={nf}' for nf in frag_configs])
-    ax.set_xlabel('Fragment Count')
+    ax.set_xlabel('Number of Fragments')
     ax.set_ylabel('Mean Processing Time (ms)')
-    ax.set_title('(a) KDA Epoch Cost by Fragment Count')
+    ax.set_title('(a) KDA Epoch Cost by Number of Fragments')
     ax.legend(fontsize=6)
     ax.grid(True, alpha=0.2, axis='y')
 
@@ -177,7 +177,7 @@ def main():
         bottom += np.array(vda_bar[op])
     ax.set_xticks(x)
     ax.set_xticklabels([f'n={nf}' for nf in vda_fcs])
-    ax.set_xlabel('Fragment Count')
+    ax.set_xlabel('Number of Fragments')
     ax.set_ylabel('Mean Total Processing Time (ms)')
     ax.set_title('(b) VDA Reconstruction Cost')
     ax.legend(fontsize=6)
@@ -214,38 +214,9 @@ def main():
     ax.grid(True, alpha=0.2)
 
     # =========================================================
-    # (e) Fragment Decryption Scaling
+    # (e) KDA Processing Scaling
     # =========================================================
     ax = axes[1][0]
-    ep_dec = defaultdict(lambda: {'total': 0, 'nf': 0, 'count': 0})
-    for d in vda:
-        if norm(d['operation']) == 'decrypt':
-            key = (d['domain'], d['epoch_id'])
-            ep_dec[key]['total'] += d['duration_ms']
-            ep_dec[key]['nf'] = d['num_fragments']
-            ep_dec[key]['count'] += 1
-    dx, dy = [], []
-    for val in ep_dec.values():
-        if val['count'] == val['nf'] and val['nf'] > 0:
-            dx.append(val['nf'])
-            dy.append(val['total'])
-    if dx:
-        ax.scatter(dx, dy, alpha=0.5, s=20, c='#00BCD4', edgecolors='black', linewidth=0.3)
-        if len(set(dx)) > 1:
-            z = np.polyfit(dx, dy, 1)
-            p = np.poly1d(z)
-            xl = np.linspace(min(dx), max(dx), 100)
-            ax.plot(xl, p(xl), 'k--', alpha=0.7, linewidth=1, label=f'{z[0]:.2f} ms/frag')
-            ax.legend(fontsize=7)
-    ax.set_xlabel('Number of Fragments')
-    ax.set_ylabel('Total Decryption Time (ms)')
-    ax.set_title('(e) Fragment Decryption Scaling')
-    ax.grid(True, alpha=0.2)
-
-    # =========================================================
-    # (f) Fragment Encryption Scaling
-    # =========================================================
-    ax = axes[1][1]
     ep_frag = defaultdict(lambda: {'total': 0, 'nf': 0, 'count': 0})
     for d in kda:
         if norm(d['operation']) == 'fragment':
@@ -267,8 +238,37 @@ def main():
             ax.plot(xl, p(xl), 'k--', alpha=0.7, linewidth=1, label=f'{z[0]:.2f} ms/frag')
             ax.legend(fontsize=7)
     ax.set_xlabel('Number of Fragments')
-    ax.set_ylabel('Total Encryption Time (ms)')
-    ax.set_title('(f) Fragment Encryption Scaling')
+    ax.set_ylabel('Total KDA Processing Time (ms)')
+    ax.set_title('(e) KDA Processing Scaling')
+    ax.grid(True, alpha=0.2)
+
+    # =========================================================
+    # (f) VDA Processing Scaling
+    # =========================================================
+    ax = axes[1][1]
+    ep_dec = defaultdict(lambda: {'total': 0, 'nf': 0, 'count': 0})
+    for d in vda:
+        if norm(d['operation']) == 'decrypt':
+            key = (d['domain'], d['epoch_id'])
+            ep_dec[key]['total'] += d['duration_ms']
+            ep_dec[key]['nf'] = d['num_fragments']
+            ep_dec[key]['count'] += 1
+    dx, dy = [], []
+    for val in ep_dec.values():
+        if val['count'] == val['nf'] and val['nf'] > 0:
+            dx.append(val['nf'])
+            dy.append(val['total'])
+    if dx:
+        ax.scatter(dx, dy, alpha=0.5, s=20, c='#00BCD4', edgecolors='black', linewidth=0.3)
+        if len(set(dx)) > 1:
+            z = np.polyfit(dx, dy, 1)
+            p = np.poly1d(z)
+            xl = np.linspace(min(dx), max(dx), 100)
+            ax.plot(xl, p(xl), 'k--', alpha=0.7, linewidth=1, label=f'{z[0]:.2f} ms/frag')
+            ax.legend(fontsize=7)
+    ax.set_xlabel('Number of Fragments')
+    ax.set_ylabel('Total VDA Processing Time (ms)')
+    ax.set_title('(f) VDA Processing Scaling')
     ax.grid(True, alpha=0.2)
 
     # =========================================================
@@ -303,22 +303,22 @@ def main():
     # (h) CDF: Combined KDA + VDA Time per Epoch
     # =========================================================
     ax = axes[1][3]
-    kda_ep = defaultdict(float)
+    kda_ep_cdf = defaultdict(float)
     for d in kda:
         if norm(d['operation']) not in ('epr', 'epoch_total') and not d['operation'].startswith('fah_'):
-            kda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
-    vda_ep = defaultdict(float)
+            kda_ep_cdf[(d['domain'], d['epoch_id'])] += d['duration_ms']
+    vda_ep_cdf = defaultdict(float)
     vda_complete = set()
     for d in vda:
-        vda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
+        vda_ep_cdf[(d['domain'], d['epoch_id'])] += d['duration_ms']
         if d['operation'] == 'verify_commit':
             vda_complete.add((d['domain'], d['epoch_id']))
-    common = set(kda_ep.keys()) & vda_complete
-    if common:
-        combined = [kda_ep[k] + vda_ep[k] for k in common]
+    common_cdf = set(kda_ep_cdf.keys()) & vda_complete
+    if common_cdf:
+        combined = [kda_ep_cdf[k] + vda_ep_cdf[k] for k in common_cdf]
         plot_cdf(ax, combined, '#9C27B0', 'KDA + VDA')
-        plot_cdf(ax, [kda_ep[k] for k in common], '#2196F3', 'KDA only')
-        plot_cdf(ax, [vda_ep[k] for k in common], '#4CAF50', 'VDA only')
+        plot_cdf(ax, [kda_ep_cdf[k] for k in common_cdf], '#2196F3', 'KDA only')
+        plot_cdf(ax, [vda_ep_cdf[k] for k in common_cdf], '#4CAF50', 'VDA only')
         ax.legend(loc='lower right', fontsize=7)
     ax.set_xlabel('Total Processing Time (ms)')
     ax.set_ylabel('CDF')

@@ -226,7 +226,7 @@ fn get_oldest_undisclosed_epoch(domain: &str) -> Option<u64> {
     None
 }
 
-fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>) {
+fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>) {
     let fragment_interval = epoch_interval / num_fragments as u64;
 
     log_domain(&domain, &format!(
@@ -236,6 +236,13 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
     ensure_fah_epochs(&domain, fah, num_fragments);
 
     while running.load(Ordering::SeqCst) {
+        if let Some(dur) = run_duration {
+            if start_time.elapsed() >= dur {
+                log_domain(&domain, &format!("Run duration ({:.0}min) reached. Stopping.", dur.as_secs_f64() / 60.0));
+                break;
+            }
+        }
+
         let epoch_id = match get_oldest_undisclosed_epoch(&domain) {
             Some(eid) => eid,
             None => {
@@ -332,9 +339,20 @@ fn main() {
         r.store(false, Ordering::SeqCst);
     }).expect("Failed to set Ctrl+C handler");
 
+    let run_duration = std::env::var("NAEF_RUN_DURATION")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(|mins| Duration::from_secs(mins * 60));
+    let start_time = Instant::now();
+
     log_global("=== KDA Service Started (with metrics) ===");
     log_global(&format!("Config file: {}", INIT_PATH));
     log_global(&format!("Metrics dir: {}", METRICS_DIR));
+    if let Some(dur) = run_duration {
+        log_global(&format!("Run duration: {} minutes", dur.as_secs() / 60));
+    } else {
+        log_global("Run duration: unlimited");
+    }
     log_global("Press Ctrl+C to stop gracefully.");
     println!();
 
@@ -343,6 +361,13 @@ fn main() {
 
     loop {
         if !running.load(Ordering::SeqCst) { break; }
+        if let Some(dur) = run_duration {
+            if start_time.elapsed() >= dur {
+                log_global(&format!("=== Run duration ({} min) reached. Shutting down all threads... ===", dur.as_secs() / 60));
+                running.store(false, Ordering::SeqCst);
+                break;
+            }
+        }
 
         let domains = read_all_domains();
 
@@ -359,8 +384,10 @@ fn main() {
                 let fah = config.fah;
                 let r = running.clone();
 
+                let st = start_time;
+                let rd = run_duration;
                 let handle = thread::spawn(move || {
-                    run_domain(domain, ei, nf, fah, r);
+                    run_domain(domain, ei, nf, fah, r, st, rd);
                 });
                 handles.push(handle);
             }
