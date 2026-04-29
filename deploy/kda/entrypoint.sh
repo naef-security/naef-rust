@@ -5,10 +5,10 @@ echo "Exchange: s3://${S3_EXCHANGE_BUCKET:-naef-exchange}"
 echo ""
 
 # Copy init.json into volume if not already present
-if [ ! -f /app/NAEF/init.json ] && [ -f /app/init_203.json ]; then
+if [ ! -f /app/NAEF/init.json ] && [ -f /app/init_120.json ]; then
     mkdir -p /app/NAEF
-    cp /app/init_203.json /app/NAEF/init.json
-    echo "Copied init_203.json -> NAEF/init.json"
+    cp /app/init_120.json /app/NAEF/init.json
+    echo "Copied init_120.json -> NAEF/init.json"
 fi
 
 # Start S3 sync in background

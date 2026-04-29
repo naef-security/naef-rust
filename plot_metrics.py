@@ -106,6 +106,25 @@ def plot_cdf(ax, values, color, label=None):
     ax.plot(sorted_v, cdf, linewidth=1.5, color=color, label=label)
 
 
+def read_domain_intervals(kda_csv_path):
+    """Read epoch_interval per domain from init.json next to the CSV, or from init_*.json"""
+    import os, glob
+    base = os.path.dirname(kda_csv_path) or '.'
+    best = {}
+    for p in [os.path.join(base, 'NAEF', 'init.json')] + sorted(glob.glob(os.path.join(base, 'init_*.json'))):
+        if os.path.exists(p):
+            try:
+                import json
+                with open(p) as f:
+                    data = json.load(f)
+                candidate = {entry['domain']: int(entry['epoch_interval']) for entry in data}
+                if len(candidate) > len(best):
+                    best = candidate
+            except:
+                pass
+    return best
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--kda', default='kda_metrics.csv')
@@ -116,71 +135,100 @@ def main():
     kda = parse_kda(read_csv(args.kda)) if os.path.exists(args.kda) else []
     vda = parse_vda(read_csv(args.vda)) if os.path.exists(args.vda) else []
     e2e = get_e2e_times(kda, vda)
-    print(f"Loaded {len(kda)} KDA, {len(vda)} VDA, {len(e2e)} E2E records")
+    domain_intervals = read_domain_intervals(args.kda)
+    print(f"Loaded {len(kda)} KDA, {len(vda)} VDA, {len(e2e)} E2E records, {len(domain_intervals)} domain intervals")
 
-    fig, axes = plt.subplots(2, 4, figsize=(22, 10))
+    fig, axes = plt.subplots(3, 4, figsize=(22, 15))
     fig.suptitle('NAEF Protocol Performance Dashboard', fontsize=16, fontweight='bold', y=0.995)
 
     # =========================================================
-    # (a) KDA Epoch Lifecycle Stacked Bar by Fragment Count
+    # (a) KDA Operation Processing Time
     # =========================================================
     ax = axes[0][0]
-    frag_configs = sorted(set(d['num_fragments'] for d in kda))
     lc_ops = ['eka', 'kdr', 'fragment', 'dpr']
     lc_colors = ['#81C784', '#FFB74D', '#E57373', '#BA68C8']
     lc_labels = ['EKA', 'KDR', 'Fragment', 'DPR']
-    bar_d = {op: [] for op in lc_ops}
-    for nf in frag_configs:
+    frag_configs = sorted(set(d['num_fragments'] for d in kda))
+    if len(frag_configs) > 1:
+        n_ops = len(lc_ops)
+        n_fcs = len(frag_configs)
+        total_w = 0.8
+        w = total_w / n_ops
+        x = np.arange(n_fcs)
+        for i, op in enumerate(lc_ops):
+            means, mins, maxs = [], [], []
+            for nf in frag_configs:
+                vals = [d['duration_ms'] for d in kda if norm(d['operation']) == op and d['num_fragments'] == nf]
+                m = np.mean(vals) if vals else 0
+                means.append(m)
+                mins.append(m - np.min(vals) if vals else 0)
+                maxs.append(np.max(vals) - m if vals else 0)
+            offset = (i - (n_ops - 1) / 2) * w
+            ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=lc_labels[i],
+                   color=lc_colors[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+        ax.set_xticks(x)
+        ax.set_xticklabels([f'n={nf}' for nf in frag_configs])
+        ax.set_xlabel('Number of Fragments')
+        ax.legend(fontsize=6)
+    else:
+        means, mins, maxs = [], [], []
         for op in lc_ops:
-            vals = [d['duration_ms'] for d in kda if norm(d['operation']) == op and d['num_fragments'] == nf]
-            bar_d[op].append(np.mean(vals) if vals else 0)
-    x = np.arange(len(frag_configs))
-    bottom = np.zeros(len(frag_configs))
-    for i, op in enumerate(lc_ops):
-        ax.bar(x, bar_d[op], 0.5, bottom=bottom, label=lc_labels[i], color=lc_colors[i], alpha=0.8)
-        bottom += np.array(bar_d[op])
-    ax.set_xticks(x)
-    ax.set_xticklabels([f'n={nf}' for nf in frag_configs])
-    ax.set_xlabel('Number of Fragments')
-    ax.set_ylabel('Mean Processing Time (ms)')
-    ax.set_title('(a) KDA Epoch Cost by Number of Fragments')
-    ax.legend(fontsize=6)
+            vals = get_vals(kda, [], op)
+            m = np.mean(vals) if vals else 0
+            means.append(m)
+            mins.append(m - np.min(vals) if vals else 0)
+            maxs.append(np.max(vals) - m if vals else 0)
+        x = np.arange(len(lc_ops))
+        ax.bar(x, means, 0.5, yerr=[mins, maxs], capsize=4, color=lc_colors, alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+        ax.set_xticks(x)
+        ax.set_xticklabels(lc_labels)
+    ax.set_ylabel('Processing Time (ms)')
+    ax.set_title('(a) KDA Operation Processing Time')
     ax.grid(True, alpha=0.2, axis='y')
 
     # =========================================================
-    # (b) VDA Reconstruction Stacked Bar by Fragment Count
+    # (b) VDA Operation Processing Time
     # =========================================================
     ax = axes[0][1]
-    vda_fcs = sorted(set(d['num_fragments'] for d in vda))
     vda_ops = ['decrypt', 'reconstruct', 'verify_commit']
     vda_colors = ['#00BCD4', '#795548', '#607D8B']
-    vda_labels = ['Decrypt (total)', 'Reconstruct', 'VerifyCommit']
-    vda_bar = {op: [] for op in vda_ops}
-    for nf in vda_fcs:
-        for op in vda_ops:
-            if op == 'decrypt':
-                ep_sums = defaultdict(float)
-                ep_counts = defaultdict(int)
-                for d in vda:
-                    if norm(d['operation']) == 'decrypt' and d['num_fragments'] == nf:
-                        ep_sums[(d['domain'], d['epoch_id'])] += d['duration_ms']
-                        ep_counts[(d['domain'], d['epoch_id'])] += 1
-                complete = [v for k, v in ep_sums.items() if ep_counts[k] == nf]
-                vda_bar[op].append(np.mean(complete) if complete else 0)
-            else:
+    vda_labels = ['Decrypt', 'Reconstruct', 'VerifyCommit']
+    vda_fcs = sorted(set(d['num_fragments'] for d in vda))
+    if len(vda_fcs) > 1:
+        n_ops = len(vda_ops)
+        n_fcs = len(vda_fcs)
+        total_w = 0.8
+        w = total_w / n_ops
+        x = np.arange(n_fcs)
+        for i, op in enumerate(vda_ops):
+            means, mins, maxs = [], [], []
+            for nf in vda_fcs:
                 vals = [d['duration_ms'] for d in vda if norm(d['operation']) == op and d['num_fragments'] == nf]
-                vda_bar[op].append(np.mean(vals) if vals else 0)
-    x = np.arange(len(vda_fcs))
-    bottom = np.zeros(len(vda_fcs))
-    for i, op in enumerate(vda_ops):
-        ax.bar(x, vda_bar[op], 0.5, bottom=bottom, label=vda_labels[i], color=vda_colors[i], alpha=0.8)
-        bottom += np.array(vda_bar[op])
-    ax.set_xticks(x)
-    ax.set_xticklabels([f'n={nf}' for nf in vda_fcs])
-    ax.set_xlabel('Number of Fragments')
-    ax.set_ylabel('Mean Total Processing Time (ms)')
-    ax.set_title('(b) VDA Reconstruction Cost')
-    ax.legend(fontsize=6)
+                m = np.mean(vals) if vals else 0
+                means.append(m)
+                mins.append(m - np.min(vals) if vals else 0)
+                maxs.append(np.max(vals) - m if vals else 0)
+            offset = (i - (n_ops - 1) / 2) * w
+            ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=vda_labels[i],
+                   color=vda_colors[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+        ax.set_xticks(x)
+        ax.set_xticklabels([f'n={nf}' for nf in vda_fcs])
+        ax.set_xlabel('Number of Fragments')
+        ax.legend(fontsize=6)
+    else:
+        means, mins, maxs = [], [], []
+        for op in vda_ops:
+            vals = get_vals([], vda, op)
+            m = np.mean(vals) if vals else 0
+            means.append(m)
+            mins.append(m - np.min(vals) if vals else 0)
+            maxs.append(np.max(vals) - m if vals else 0)
+        x = np.arange(len(vda_ops))
+        ax.bar(x, means, 0.5, yerr=[mins, maxs], capsize=4, color=vda_colors, alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+        ax.set_xticks(x)
+        ax.set_xticklabels(vda_labels)
+    ax.set_ylabel('Processing Time (ms)')
+    ax.set_title('(b) VDA Operation Processing Time')
     ax.grid(True, alpha=0.2, axis='y')
 
     # =========================================================
@@ -214,9 +262,111 @@ def main():
     ax.grid(True, alpha=0.2)
 
     # =========================================================
-    # (e) KDA Processing Scaling
+    # (e) KDA Processing Time by Epoch Interval
     # =========================================================
     ax = axes[1][0]
+    lc_ops_e = ['eka', 'kdr', 'fragment', 'dpr']
+    lc_colors_e = ['#81C784', '#FFB74D', '#E57373', '#BA68C8']
+    lc_labels_e = ['EKA', 'KDR', 'Fragment', 'DPR']
+    if domain_intervals:
+        ei_set = sorted(set(domain_intervals.values()))
+        if len(ei_set) > 1:
+            n_ops = len(lc_ops_e)
+            total_w = 0.8
+            w = total_w / n_ops
+            x = np.arange(len(ei_set))
+            for i, op in enumerate(lc_ops_e):
+                means, mins, maxs = [], [], []
+                for ei in ei_set:
+                    ei_domains = {d for d, v in domain_intervals.items() if v == ei}
+                    vals = [d['duration_ms'] for d in kda if norm(d['operation']) == op and d['domain'] in ei_domains]
+                    m = np.mean(vals) if vals else 0
+                    means.append(m)
+                    mins.append(m - np.min(vals) if vals else 0)
+                    maxs.append(np.max(vals) - m if vals else 0)
+                offset = (i - (n_ops - 1) / 2) * w
+                ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=lc_labels_e[i],
+                       color=lc_colors_e[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+            ax.set_xticks(x)
+            ax.set_xticklabels([f'{ei}s' for ei in ei_set], rotation=45, ha='right')
+            ax.set_xlabel('Epoch Interval')
+            ax.legend(fontsize=6)
+    ax.set_ylabel('Processing Time (ms)')
+    ax.set_title('(e) KDA Processing Time by Epoch Interval')
+    ax.grid(True, alpha=0.2, axis='y')
+
+    # =========================================================
+    # (f) VDA Processing Time by Epoch Interval
+    # =========================================================
+    ax = axes[1][1]
+    vda_ops_f = ['decrypt', 'reconstruct', 'verify_commit']
+    vda_colors_f = ['#00BCD4', '#795548', '#607D8B']
+    vda_labels_f = ['Decrypt', 'Reconstruct', 'VerifyCommit']
+    if domain_intervals:
+        ei_set = sorted(set(domain_intervals.values()))
+        if len(ei_set) > 1:
+            n_ops = len(vda_ops_f)
+            total_w = 0.8
+            w = total_w / n_ops
+            x = np.arange(len(ei_set))
+            for i, op in enumerate(vda_ops_f):
+                means, mins, maxs = [], [], []
+                for ei in ei_set:
+                    ei_domains = {d for d, v in domain_intervals.items() if v == ei}
+                    vals = [d['duration_ms'] for d in vda if norm(d['operation']) == op and d['domain'] in ei_domains]
+                    m = np.mean(vals) if vals else 0
+                    means.append(m)
+                    mins.append(m - np.min(vals) if vals else 0)
+                    maxs.append(np.max(vals) - m if vals else 0)
+                offset = (i - (n_ops - 1) / 2) * w
+                ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=vda_labels_f[i],
+                       color=vda_colors_f[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
+            ax.set_xticks(x)
+            ax.set_xticklabels([f'{ei}s' for ei in ei_set], rotation=45, ha='right')
+            ax.set_xlabel('Epoch Interval')
+            ax.legend(fontsize=6)
+    ax.set_ylabel('Processing Time (ms)')
+    ax.set_title('(f) VDA Processing Time by Epoch Interval')
+    ax.grid(True, alpha=0.2, axis='y')
+
+    # =========================================================
+    # (g) CDF: KDA by Epoch Interval
+    # =========================================================
+    ax = axes[1][2]
+    if domain_intervals:
+        ei_set = sorted(set(domain_intervals.values()))
+        if len(ei_set) > 1:
+            for i, ei in enumerate(ei_set):
+                ei_domains = {d for d, v in domain_intervals.items() if v == ei}
+                vals = [d['duration_ms'] for d in kda if norm(d['operation']) in ('eka','kdr','fragment','dpr') and d['domain'] in ei_domains]
+                plot_cdf(ax, vals, COLORS[i % len(COLORS)], f'{ei}s')
+            ax.legend(loc='lower right', fontsize=5, ncol=2)
+    ax.set_xlabel('Processing Time (ms)')
+    ax.set_ylabel('CDF')
+    ax.set_title('(g) CDF: KDA by Epoch Interval')
+    ax.grid(True, alpha=0.2)
+
+    # =========================================================
+    # (h) CDF: VDA by Epoch Interval
+    # =========================================================
+    ax = axes[1][3]
+    if domain_intervals:
+        ei_set = sorted(set(domain_intervals.values()))
+        if len(ei_set) > 1:
+            for i, ei in enumerate(ei_set):
+                ei_domains = {d for d, v in domain_intervals.items() if v == ei}
+                vals = [d['duration_ms'] for d in vda if d['domain'] in ei_domains]
+                plot_cdf(ax, vals, COLORS[i % len(COLORS)], f'{ei}s')
+            ax.legend(loc='lower right', fontsize=5, ncol=2)
+    ax.set_xlabel('Processing Time (ms)')
+    ax.set_ylabel('CDF')
+    ax.set_title('(h) CDF: VDA by Epoch Interval')
+    ax.grid(True, alpha=0.2)
+
+    # =========================================================
+    # (i) KDA Processing Scaling
+    # =========================================================
+    ax = axes[2][0]
     ep_frag = defaultdict(lambda: {'total': 0, 'nf': 0, 'count': 0})
     for d in kda:
         if norm(d['operation']) == 'fragment':
@@ -239,13 +389,13 @@ def main():
             ax.legend(fontsize=7)
     ax.set_xlabel('Number of Fragments')
     ax.set_ylabel('Total KDA Processing Time (ms)')
-    ax.set_title('(e) KDA Processing Scaling')
+    ax.set_title('(i) KDA Processing Scaling')
     ax.grid(True, alpha=0.2)
 
     # =========================================================
-    # (f) VDA Processing Scaling
+    # (j) VDA Processing Scaling
     # =========================================================
-    ax = axes[1][1]
+    ax = axes[2][1]
     ep_dec = defaultdict(lambda: {'total': 0, 'nf': 0, 'count': 0})
     for d in vda:
         if norm(d['operation']) == 'decrypt':
@@ -268,22 +418,26 @@ def main():
             ax.legend(fontsize=7)
     ax.set_xlabel('Number of Fragments')
     ax.set_ylabel('Total VDA Processing Time (ms)')
-    ax.set_title('(f) VDA Processing Scaling')
+    ax.set_title('(j) VDA Processing Scaling')
     ax.grid(True, alpha=0.2)
 
     # =========================================================
-    # (g) KDA vs VDA Processing per Epoch (all domains)
+    # (k) KDA vs VDA Processing per Epoch (all domains)
     # =========================================================
-    ax = axes[1][2]
+    ax = axes[2][2]
     kda_ep = defaultdict(float)
+    kda_ep_nf = {}
     for d in kda:
         if norm(d['operation']) in ('fragment', 'kdr', 'dpr'):
-            kda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
+            key = (d['domain'], d['epoch_id'])
+            kda_ep[key] += d['duration_ms']
+            kda_ep_nf[key] = d['num_fragments']
     vda_ep = defaultdict(float)
     for d in vda:
         if norm(d['operation']) in ('decrypt', 'reconstruct'):
             vda_ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
-    common = sorted(set(kda_ep.keys()) & set(vda_ep.keys()))
+    common = sorted(set(kda_ep.keys()) & set(vda_ep.keys()),
+                    key=lambda k: (kda_ep_nf.get(k, 0), k))
     if common:
         x = np.arange(len(common))
         kt = [kda_ep[k] for k in common]
@@ -291,18 +445,28 @@ def main():
         ax.bar(x, kt, label='KDA (fragmentation)', color='#2196F3', alpha=0.8)
         ax.bar(x, vt, bottom=kt, label='VDA (reconstruction)', color='#4CAF50', alpha=0.8)
         ax.legend(fontsize=6)
-        step = max(1, len(common) // 10)
-        ax.set_xticks(x[::step])
-        ax.set_xticklabels([str(i+1) for i in x[::step]])
-    ax.set_xlabel('Epoch Index')
+        # Add fragment count group separators and labels
+        nf_groups = []
+        prev_nf = None
+        for i, k in enumerate(common):
+            nf = kda_ep_nf.get(k, 0)
+            if nf != prev_nf:
+                if prev_nf is not None:
+                    ax.axvline(x=i - 0.5, color='gray', linewidth=0.5, linestyle='--', alpha=0.5)
+                nf_groups.append((i, nf))
+                prev_nf = nf
+        for start, nf in nf_groups:
+            ax.text(start + 1, max(kt) * 0.95, f'n={nf}', fontsize=5, color='gray', ha='left')
+        ax.set_xticks([])
+    ax.set_xlabel('Epochs (grouped by fragment count)')
     ax.set_ylabel('Total Processing Time (ms)')
-    ax.set_title('(g) KDA vs VDA Processing per Epoch')
+    ax.set_title('(k) KDA vs VDA Processing per Epoch')
     ax.grid(True, alpha=0.2, axis='y')
 
     # =========================================================
-    # (h) CDF: Combined KDA + VDA Time per Epoch
+    # (l) CDF: Combined KDA + VDA Time per Epoch
     # =========================================================
-    ax = axes[1][3]
+    ax = axes[2][3]
     kda_ep_cdf = defaultdict(float)
     for d in kda:
         if norm(d['operation']) not in ('epr', 'epoch_total') and not d['operation'].startswith('fah_'):
@@ -322,7 +486,7 @@ def main():
         ax.legend(loc='lower right', fontsize=7)
     ax.set_xlabel('Total Processing Time (ms)')
     ax.set_ylabel('CDF')
-    ax.set_title('(h) CDF: KDA + VDA Processing per Epoch')
+    ax.set_title('(l) CDF: KDA + VDA Processing per Epoch')
     ax.grid(True, alpha=0.2)
 
     plt.tight_layout(rect=[0, 0, 1, 0.98])
