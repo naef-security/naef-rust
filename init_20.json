@@ -1,0 +1,142 @@
+[
+  {
+    "domain": "domain001.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain001.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain002.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain002.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain003.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain003.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain004.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain004.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain005.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain005.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain006.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain006.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain007.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain007.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain008.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain008.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain009.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain009.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain010.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain010.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain011.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain011.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain012.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain012.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain013.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain013.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain014.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain014.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain015.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain015.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain016.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain016.test",
+    "num_fragments": "30",
+    "fah": "3"
+  },
+  {
+    "domain": "domain017.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain017.test",
+    "num_fragments": "30",
+    "fah": "3"
+  },
+  {
+    "domain": "domain018.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain018.test",
+    "num_fragments": "30",
+    "fah": "3"
+  },
+  {
+    "domain": "domain019.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain019.test",
+    "num_fragments": "30",
+    "fah": "3"
+  },
+  {
+    "domain": "domain020.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain020.test",
+    "num_fragments": "30",
+    "fah": "3"
+  }
+]

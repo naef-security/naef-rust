@@ -74,6 +74,45 @@ def get_vals(kda, vda, op):
             [d['duration_ms'] for d in vda if norm(d['operation']) == op])
 
 
+def get_epoch_totals(data, op):
+    """Sum per-fragment ops into per-epoch totals. For non-fragment ops, return individual values."""
+    if op in ('fragment', 'decrypt'):
+        ep = defaultdict(float)
+        ep_nf = {}
+        for d in data:
+            if norm(d['operation']) == op:
+                key = (d['domain'], d['epoch_id'])
+                ep[key] += d['duration_ms']
+                ep_nf[key] = d['num_fragments']
+        return list(ep.values()), ep_nf
+    else:
+        return [d['duration_ms'] for d in data if norm(d['operation']) == op], {}
+
+
+def get_epoch_totals_by_nf(data, op, nf):
+    """Get per-epoch totals filtered by fragment count."""
+    if op in ('fragment', 'decrypt'):
+        ep = defaultdict(float)
+        for d in data:
+            if norm(d['operation']) == op and d['num_fragments'] == nf:
+                ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
+        return list(ep.values())
+    else:
+        return [d['duration_ms'] for d in data if norm(d['operation']) == op and d['num_fragments'] == nf]
+
+
+def get_epoch_totals_by_domains(data, op, domain_set):
+    """Get per-epoch totals filtered by domain set."""
+    if op in ('fragment', 'decrypt'):
+        ep = defaultdict(float)
+        for d in data:
+            if norm(d['operation']) == op and d['domain'] in domain_set:
+                ep[(d['domain'], d['epoch_id'])] += d['duration_ms']
+        return list(ep.values())
+    else:
+        return [d['duration_ms'] for d in data if norm(d['operation']) == op and d['domain'] in domain_set]
+
+
 def get_e2e_times(kda, vda):
     kda_start = {}
     for d in kda:
@@ -107,10 +146,21 @@ def plot_cdf(ax, values, color, label=None):
 
 
 def read_domain_intervals(kda_csv_path):
-    """Read epoch_interval per domain from init.json next to the CSV, or from init_*.json"""
+    """Read epoch_interval per domain from init.json next to the CSV, or from init_*.json.
+    Picks the file whose domains best match the domains in the CSV."""
     import os, glob
     base = os.path.dirname(kda_csv_path) or '.'
+    # Get domains from CSV
+    csv_domains = set()
+    try:
+        with open(kda_csv_path) as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                csv_domains.add(row['domain'])
+    except:
+        pass
     best = {}
+    best_overlap = 0
     for p in [os.path.join(base, 'NAEF', 'init.json')] + sorted(glob.glob(os.path.join(base, 'init_*.json'))):
         if os.path.exists(p):
             try:
@@ -118,8 +168,10 @@ def read_domain_intervals(kda_csv_path):
                 with open(p) as f:
                     data = json.load(f)
                 candidate = {entry['domain']: int(entry['epoch_interval']) for entry in data}
-                if len(candidate) > len(best):
+                overlap = len(set(candidate.keys()) & csv_domains)
+                if overlap > best_overlap:
                     best = candidate
+                    best_overlap = overlap
             except:
                 pass
     return best
@@ -147,7 +199,7 @@ def main():
     ax = axes[0][0]
     lc_ops = ['eka', 'kdr', 'fragment', 'dpr']
     lc_colors = ['#81C784', '#FFB74D', '#E57373', '#BA68C8']
-    lc_labels = ['EKA', 'KDR', 'Fragment', 'DPR']
+    lc_labels = ['EKA', 'KDR', 'Fragment (total)', 'DPR']
     frag_configs = sorted(set(d['num_fragments'] for d in kda))
     if len(frag_configs) > 1:
         n_ops = len(lc_ops)
@@ -158,11 +210,11 @@ def main():
         for i, op in enumerate(lc_ops):
             means, mins, maxs = [], [], []
             for nf in frag_configs:
-                vals = [d['duration_ms'] for d in kda if norm(d['operation']) == op and d['num_fragments'] == nf]
+                vals = get_epoch_totals_by_nf(kda, op, nf)
                 m = np.mean(vals) if vals else 0
                 means.append(m)
-                mins.append(m - np.min(vals) if vals else 0)
-                maxs.append(np.max(vals) - m if vals else 0)
+                mins.append(m - np.percentile(vals, 5) if vals else 0)
+                maxs.append(np.percentile(vals, 95) - m if vals else 0)
             offset = (i - (n_ops - 1) / 2) * w
             ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=lc_labels[i],
                    color=lc_colors[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
@@ -173,11 +225,11 @@ def main():
     else:
         means, mins, maxs = [], [], []
         for op in lc_ops:
-            vals = get_vals(kda, [], op)
+            vals, _ = get_epoch_totals(kda, op)
             m = np.mean(vals) if vals else 0
             means.append(m)
-            mins.append(m - np.min(vals) if vals else 0)
-            maxs.append(np.max(vals) - m if vals else 0)
+            mins.append(m - np.percentile(vals, 5) if vals else 0)
+            maxs.append(np.percentile(vals, 95) - m if vals else 0)
         x = np.arange(len(lc_ops))
         ax.bar(x, means, 0.5, yerr=[mins, maxs], capsize=4, color=lc_colors, alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
         ax.set_xticks(x)
@@ -192,7 +244,7 @@ def main():
     ax = axes[0][1]
     vda_ops = ['decrypt', 'reconstruct', 'verify_commit']
     vda_colors = ['#00BCD4', '#795548', '#607D8B']
-    vda_labels = ['Decrypt', 'Reconstruct', 'VerifyCommit']
+    vda_labels = ['Decrypt (total)', 'Reconstruct', 'VerifyCommit']
     vda_fcs = sorted(set(d['num_fragments'] for d in vda))
     if len(vda_fcs) > 1:
         n_ops = len(vda_ops)
@@ -203,11 +255,11 @@ def main():
         for i, op in enumerate(vda_ops):
             means, mins, maxs = [], [], []
             for nf in vda_fcs:
-                vals = [d['duration_ms'] for d in vda if norm(d['operation']) == op and d['num_fragments'] == nf]
+                vals = get_epoch_totals_by_nf(vda, op, nf)
                 m = np.mean(vals) if vals else 0
                 means.append(m)
-                mins.append(m - np.min(vals) if vals else 0)
-                maxs.append(np.max(vals) - m if vals else 0)
+                mins.append(m - np.percentile(vals, 5) if vals else 0)
+                maxs.append(np.percentile(vals, 95) - m if vals else 0)
             offset = (i - (n_ops - 1) / 2) * w
             ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=vda_labels[i],
                    color=vda_colors[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
@@ -218,11 +270,11 @@ def main():
     else:
         means, mins, maxs = [], [], []
         for op in vda_ops:
-            vals = get_vals([], vda, op)
+            vals, _ = get_epoch_totals(vda, op)
             m = np.mean(vals) if vals else 0
             means.append(m)
-            mins.append(m - np.min(vals) if vals else 0)
-            maxs.append(np.max(vals) - m if vals else 0)
+            mins.append(m - np.percentile(vals, 5) if vals else 0)
+            maxs.append(np.percentile(vals, 95) - m if vals else 0)
         x = np.arange(len(vda_ops))
         ax.bar(x, means, 0.5, yerr=[mins, maxs], capsize=4, color=vda_colors, alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
         ax.set_xticks(x)
@@ -267,7 +319,7 @@ def main():
     ax = axes[1][0]
     lc_ops_e = ['eka', 'kdr', 'fragment', 'dpr']
     lc_colors_e = ['#81C784', '#FFB74D', '#E57373', '#BA68C8']
-    lc_labels_e = ['EKA', 'KDR', 'Fragment', 'DPR']
+    lc_labels_e = ['EKA', 'KDR', 'Fragment (total)', 'DPR']
     if domain_intervals:
         ei_set = sorted(set(domain_intervals.values()))
         if len(ei_set) > 1:
@@ -279,11 +331,11 @@ def main():
                 means, mins, maxs = [], [], []
                 for ei in ei_set:
                     ei_domains = {d for d, v in domain_intervals.items() if v == ei}
-                    vals = [d['duration_ms'] for d in kda if norm(d['operation']) == op and d['domain'] in ei_domains]
+                    vals = get_epoch_totals_by_domains(kda, op, ei_domains)
                     m = np.mean(vals) if vals else 0
                     means.append(m)
-                    mins.append(m - np.min(vals) if vals else 0)
-                    maxs.append(np.max(vals) - m if vals else 0)
+                    mins.append(m - np.percentile(vals, 5) if vals else 0)
+                    maxs.append(np.percentile(vals, 95) - m if vals else 0)
                 offset = (i - (n_ops - 1) / 2) * w
                 ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=lc_labels_e[i],
                        color=lc_colors_e[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
@@ -301,7 +353,7 @@ def main():
     ax = axes[1][1]
     vda_ops_f = ['decrypt', 'reconstruct', 'verify_commit']
     vda_colors_f = ['#00BCD4', '#795548', '#607D8B']
-    vda_labels_f = ['Decrypt', 'Reconstruct', 'VerifyCommit']
+    vda_labels_f = ['Decrypt (total)', 'Reconstruct', 'VerifyCommit']
     if domain_intervals:
         ei_set = sorted(set(domain_intervals.values()))
         if len(ei_set) > 1:
@@ -313,11 +365,11 @@ def main():
                 means, mins, maxs = [], [], []
                 for ei in ei_set:
                     ei_domains = {d for d, v in domain_intervals.items() if v == ei}
-                    vals = [d['duration_ms'] for d in vda if norm(d['operation']) == op and d['domain'] in ei_domains]
+                    vals = get_epoch_totals_by_domains(vda, op, ei_domains)
                     m = np.mean(vals) if vals else 0
                     means.append(m)
-                    mins.append(m - np.min(vals) if vals else 0)
-                    maxs.append(np.max(vals) - m if vals else 0)
+                    mins.append(m - np.percentile(vals, 5) if vals else 0)
+                    maxs.append(np.percentile(vals, 95) - m if vals else 0)
                 offset = (i - (n_ops - 1) / 2) * w
                 ax.bar(x + offset, means, w, yerr=[mins, maxs], capsize=2, label=vda_labels_f[i],
                        color=vda_colors_f[i], alpha=0.8, ecolor='black', error_kw={'linewidth': 0.8})
@@ -416,6 +468,7 @@ def main():
             xl = np.linspace(min(dx), max(dx), 100)
             ax.plot(xl, p(xl), 'k--', alpha=0.7, linewidth=1, label=f'{z[0]:.2f} ms/frag')
             ax.legend(fontsize=7)
+        ax.set_ylim(0, np.percentile(dy, 99.5) * 1.1)
     ax.set_xlabel('Number of Fragments')
     ax.set_ylabel('Total VDA Processing Time (ms)')
     ax.set_title('(j) VDA Processing Scaling')
@@ -456,8 +509,9 @@ def main():
                 nf_groups.append((i, nf))
                 prev_nf = nf
         for start, nf in nf_groups:
-            ax.text(start + 1, max(kt) * 0.95, f'n={nf}', fontsize=5, color='gray', ha='left')
+            ax.text(start + 1, min(2000, max(kt)) * 0.95, f'n={nf}', fontsize=5, color='gray', ha='left')
         ax.set_xticks([])
+        ax.set_ylim(0, 2000)
     ax.set_xlabel('Epochs (grouped by fragment count)')
     ax.set_ylabel('Total Processing Time (ms)')
     ax.set_title('(k) KDA vs VDA Processing per Epoch')
