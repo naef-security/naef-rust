@@ -226,7 +226,7 @@ fn get_oldest_undisclosed_epoch(domain: &str) -> Option<u64> {
     None
 }
 
-fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>) {
+fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>, barrier: Arc<std::sync::Barrier>) {
     let fragment_interval = epoch_interval / num_fragments as u64;
     let target_epochs = run_duration.map(|dur| dur.as_secs() / epoch_interval);
 
@@ -236,6 +236,10 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
         target_epochs.map(|t| t.to_string()).unwrap_or("unlimited".to_string())));
 
     ensure_fah_epochs(&domain, fah, num_fragments);
+
+    log_domain(&domain, "FAH complete. Waiting for all domains...");
+    barrier.wait();
+    log_domain(&domain, "All domains ready. Starting disclosure cycle.");
 
     let mut completed_epochs: u64 = 0;
 
@@ -379,6 +383,11 @@ fn main() {
     let mut handles = Vec::new();
     let mut active_domains: HashSet<String> = HashSet::new();
 
+    // Read all domains upfront to create barrier
+    let all_domains = read_all_domains();
+    let barrier = Arc::new(std::sync::Barrier::new(all_domains.len()));
+    log_global(&format!("Barrier created for {} domains", all_domains.len()));
+
     loop {
         if !running.load(Ordering::SeqCst) { break; }
 
@@ -399,8 +408,9 @@ fn main() {
 
                 let st = start_time;
                 let rd = run_duration;
+                let b = barrier.clone();
                 let handle = thread::spawn(move || {
-                    run_domain(domain, ei, nf, fah, r, st, rd);
+                    run_domain(domain, ei, nf, fah, r, st, rd, b);
                 });
                 handles.push(handle);
             }
