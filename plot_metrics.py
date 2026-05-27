@@ -509,9 +509,9 @@ def main():
                 nf_groups.append((i, nf))
                 prev_nf = nf
         for start, nf in nf_groups:
-            ax.text(start + 1, min(2000, max(kt)) * 0.95, f'n={nf}', fontsize=5, color='gray', ha='left')
+            ax.text(start + 1, max(k + v for k, v in zip(kt, vt)) * 1.05, f'n={nf}', fontsize=5, color='gray', ha='left')
         ax.set_xticks([])
-        ax.set_ylim(0, 2000)
+        ax.set_ylim(0, max(k + v for k, v in zip(kt, vt)) * 1.15)
     ax.set_xlabel('Epochs (grouped by fragment count)')
     ax.set_ylabel('Total Processing Time (ms)')
     ax.set_title('(k) KDA vs VDA Processing per Epoch')
