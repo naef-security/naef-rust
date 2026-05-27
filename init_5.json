@@ -1,0 +1,37 @@
+[
+  {
+    "domain": "domain001.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain001.test",
+    "num_fragments": "5",
+    "fah": "3"
+  },
+  {
+    "domain": "domain002.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain002.test",
+    "num_fragments": "10",
+    "fah": "3"
+  },
+  {
+    "domain": "domain003.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain003.test",
+    "num_fragments": "20",
+    "fah": "3"
+  },
+  {
+    "domain": "domain004.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain004.test",
+    "num_fragments": "30",
+    "fah": "3"
+  },
+  {
+    "domain": "domain005.test",
+    "epoch_interval": "300",
+    "selector": "naef._domainkey.domain005.test",
+    "num_fragments": "40",
+    "fah": "3"
+  }
+]
