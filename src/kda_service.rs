@@ -226,7 +226,7 @@ fn get_oldest_undisclosed_epoch(domain: &str) -> Option<u64> {
     None
 }
 
-fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>, barrier: Arc<std::sync::Barrier>) {
+fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>) {
     let fragment_interval = epoch_interval / num_fragments as u64;
     let target_epochs = run_duration.map(|dur| dur.as_secs() / epoch_interval);
 
@@ -234,12 +234,6 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
         "Thread started (epoch_interval={}s, num_fragments={}, fragment_interval={}s, fah={}, target_epochs={})",
         epoch_interval, num_fragments, fragment_interval, fah,
         target_epochs.map(|t| t.to_string()).unwrap_or("unlimited".to_string())));
-
-    ensure_fah_epochs(&domain, fah, num_fragments);
-
-    log_domain(&domain, "FAH complete. Waiting for all domains...");
-    barrier.wait();
-    log_domain(&domain, "All domains ready. Starting disclosure cycle.");
 
     let mut completed_epochs: u64 = 0;
 
@@ -383,11 +377,17 @@ fn main() {
     let mut handles = Vec::new();
     let mut active_domains: HashSet<String> = HashSet::new();
 
-    // Read all domains upfront to create barrier
+    // Phase 1: Sequential FAH initialization
     let all_domains = read_all_domains();
-    let barrier = Arc::new(std::sync::Barrier::new(all_domains.len()));
-    log_global(&format!("Barrier created for {} domains", all_domains.len()));
+    log_global(&format!("=== FAH Phase: Initializing {} domains ===", all_domains.len()));
+    for (i, config) in all_domains.iter().enumerate() {
+        log_global(&format!("FAH [{}/{}] {}", i + 1, all_domains.len(), config.domain));
+        ensure_fah_epochs(&config.domain, config.fah, config.num_fragments);
+    }
+    log_global("=== FAH Phase Complete. Starting disclosure threads... ===");
+    println!();
 
+    // Phase 2: Spawn domain threads
     loop {
         if !running.load(Ordering::SeqCst) { break; }
 
@@ -408,9 +408,8 @@ fn main() {
 
                 let st = start_time;
                 let rd = run_duration;
-                let b = barrier.clone();
                 let handle = thread::spawn(move || {
-                    run_domain(domain, ei, nf, fah, r, st, rd, b);
+                    run_domain(domain, ei, nf, fah, r, st, rd);
                 });
                 handles.push(handle);
             }
