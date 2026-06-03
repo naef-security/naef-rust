@@ -2,7 +2,7 @@ use std::process::Command;
 use std::thread;
 use std::time::{Duration, Instant};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -226,19 +226,24 @@ fn get_oldest_undisclosed_epoch(domain: &str) -> Option<u64> {
     None
 }
 
-fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, start_time: Instant, run_duration: Option<Duration>) {
+fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: usize, running: Arc<AtomicBool>, global_completed: Arc<AtomicU64>, global_target: Option<u64>, per_domain_target: Option<u64>) {
     let fragment_interval = epoch_interval / num_fragments as u64;
-    let target_epochs = run_duration.map(|dur| dur.as_secs() / epoch_interval);
+    let effective_target = per_domain_target.or(global_target);
 
     log_domain(&domain, &format!(
-        "Thread started (epoch_interval={}s, num_fragments={}, fragment_interval={}s, fah={}, target_epochs={})",
+        "Thread started (epoch_interval={}s, num_fragments={}, fragment_interval={}s, fah={}, target={}{})",
         epoch_interval, num_fragments, fragment_interval, fah,
-        target_epochs.map(|t| t.to_string()).unwrap_or("unlimited".to_string())));
+        effective_target.map(|t| t.to_string()).unwrap_or("unlimited".to_string()),
+        if per_domain_target.is_some() { " per-domain" } else if global_target.is_some() { " global" } else { "" }));
 
     let mut completed_epochs: u64 = 0;
 
     while running.load(Ordering::SeqCst) {
-        let target_reached = target_epochs.map(|t| completed_epochs >= t).unwrap_or(false);
+        let target_reached = if per_domain_target.is_some() {
+            per_domain_target.map(|t| completed_epochs >= t).unwrap_or(false)
+        } else {
+            global_target.map(|t| global_completed.load(Ordering::SeqCst) >= t).unwrap_or(false)
+        };
 
         let epoch_id = match get_oldest_undisclosed_epoch(&domain) {
             Some(eid) => {
@@ -246,7 +251,7 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
                     let ef = format!("NAEF/{}/{}", domain.replace('.', "_"), eid);
                     let has_kdr = file_exists(&format!("{}/kdr.txt", ef));
                     if !has_kdr {
-                        log_domain(&domain, &format!("Target reached ({}/{} epochs). Stopping.", completed_epochs, target_epochs.unwrap()));
+                        log_domain(&domain, &format!("Global target reached. Stopping (local={}).", completed_epochs));
                         break;
                     }
                 }
@@ -254,7 +259,7 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
             }
             None => {
                 if target_reached {
-                    log_domain(&domain, &format!("Target reached ({}/{} epochs). Stopping.", completed_epochs, target_epochs.unwrap()));
+                    log_domain(&domain, &format!("Global target reached. Stopping (local={}).", completed_epochs));
                     break;
                 }
                 log_domain(&domain, "No undisclosed epochs. Creating new epoch...");
@@ -311,7 +316,12 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
                     thread::sleep(Duration::from_secs(1));
                 }
             } else {
-                log(&domain, &epoch_id_str, "All fragments created.");
+                log(&domain, &epoch_id_str,
+                    &format!("All fragments created. Waiting {}s before DPR...", fragment_interval));
+                for _ in 0..fragment_interval {
+                    if !running.load(Ordering::SeqCst) { return; }
+                    thread::sleep(Duration::from_secs(1));
+                }
             }
             continue;
         }
@@ -327,11 +337,12 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
             let epoch_total_ms = epoch_start.elapsed().as_secs_f64() * 1000.0;
             write_metric(&domain, &epoch_id_str, "epoch_total", epoch_total_ms, num_fragments, fah);
 
-            log(&domain, &epoch_id_str, &format!(
-                "Epoch disclosure COMPLETE ({}/{}) (dpr={:.1}ms, total={:.1}ms)",
-                completed_epochs + 1, target_epochs.map(|t| t.to_string()).unwrap_or("∞".to_string()),
-                dpr_ms, epoch_total_ms));
+            let global_count = global_completed.fetch_add(1, Ordering::SeqCst) + 1;
             completed_epochs += 1;
+            log(&domain, &epoch_id_str, &format!(
+                "Epoch disclosure COMPLETE (local={}, global={}/{}) (dpr={:.1}ms, total={:.1}ms)",
+                completed_epochs, global_count, global_target.map(|t| t.to_string()).unwrap_or("∞".to_string()),
+                dpr_ms, epoch_total_ms));
             if !target_reached {
                 log_domain(&domain, "Maintaining Forward Attribution Horizon...");
                 ensure_fah_epochs(&domain, fah, num_fragments);
@@ -357,19 +368,23 @@ fn main() {
         r.store(false, Ordering::SeqCst);
     }).expect("Failed to set Ctrl+C handler");
 
-    let run_duration = std::env::var("NAEF_RUN_DURATION")
+    let global_target = std::env::var("NAEF_TARGET_EPOCHS")
         .ok()
-        .and_then(|v| v.parse::<u64>().ok())
-        .map(|mins| Duration::from_secs(mins * 60));
-    let start_time = Instant::now();
+        .and_then(|v| v.parse::<u64>().ok());
+    let per_domain_target = std::env::var("NAEF_EPOCHS_PER_DOMAIN")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok());
+    let global_completed = Arc::new(AtomicU64::new(0));
 
     log_global("=== KDA Service Started (with metrics) ===");
     log_global(&format!("Config file: {}", INIT_PATH));
     log_global(&format!("Metrics dir: {}", METRICS_DIR));
-    if let Some(dur) = run_duration {
-        log_global(&format!("Run duration: {} minutes", dur.as_secs() / 60));
+    if let Some(target) = per_domain_target {
+        log_global(&format!("Target epochs (per-domain): {} (overrides global)", target));
+    } else if let Some(target) = global_target {
+        log_global(&format!("Target epochs (global): {}", target));
     } else {
-        log_global("Run duration: unlimited");
+        log_global("Target epochs: unlimited");
     }
     log_global("Press Ctrl+C to stop gracefully.");
     println!();
@@ -406,21 +421,26 @@ fn main() {
                 let fah = config.fah;
                 let r = running.clone();
 
-                let st = start_time;
-                let rd = run_duration;
+                let gc = global_completed.clone();
+                let gt = global_target;
+                let pdt = per_domain_target;
                 let handle = thread::spawn(move || {
-                    run_domain(domain, ei, nf, fah, r, st, rd);
+                    run_domain(domain, ei, nf, fah, r, gc, gt, pdt);
                 });
                 handles.push(handle);
             }
         }
 
-        // If all domains spawned and run_duration set, wait for threads to finish
-        if run_duration.is_some() && active_domains.len() >= read_all_domains().len() && !handles.is_empty() {
-            // Check if all threads have finished
-            let all_done = handles.iter().all(|h| h.is_finished());
-            if all_done {
-                log_global("All domain threads completed their epoch targets.");
+        // Stop condition: per-domain threads self-terminate, or global target reached
+        if (global_target.is_some() || per_domain_target.is_some()) && active_domains.len() >= read_all_domains().len() && !handles.is_empty() {
+            let should_stop = if per_domain_target.is_some() {
+                handles.iter().all(|h| h.is_finished())
+            } else {
+                global_completed.load(Ordering::SeqCst) >= global_target.unwrap() || handles.iter().all(|h| h.is_finished())
+            };
+            if should_stop {
+                log_global(&format!("Target reached ({} total epochs completed). Stopping.", global_completed.load(Ordering::SeqCst)));
+                running.store(false, Ordering::SeqCst);
                 break;
             }
         }
