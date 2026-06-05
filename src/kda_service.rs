@@ -295,35 +295,39 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
             print!("  {}", out);
             kdr_ms = ms;
             write_metric(&domain, &epoch_id_str, "kdr", ms, num_fragments, fah);
-            continue;
-        }
 
-        // Fragments
-        let fdr_count = count_fdr_files(&epoch_folder, num_fragments);
-        if fdr_count < num_fragments {
-            log(&domain, &epoch_id_str,
-                &format!("Fragment {}/{} - Running fragment command...", fdr_count + 1, num_fragments));
-            let (out, ms) = run_kda_timed(&["fragment", &domain, &epoch_id_str]);
-            print!("  {}", out);
-            write_metric(&domain, &epoch_id_str, &format!("fragment_{}", fdr_count + 1), ms, num_fragments, fah);
+            // Record embargo time: DPR fires exactly epoch_interval after KDR
+            let embargo_deadline = Instant::now() + Duration::from_secs(epoch_interval);
 
-            let new_count = count_fdr_files(&epoch_folder, num_fragments);
-            if new_count < num_fragments {
-                log(&domain, &epoch_id_str,
-                    &format!("Waiting {}s before next fragment...", fragment_interval));
-                for _ in 0..fragment_interval {
-                    if !running.load(Ordering::SeqCst) { return; }
-                    thread::sleep(Duration::from_secs(1));
+            // Fragments: spread across the epoch interval
+            for frag_idx in 0..num_fragments {
+                if !running.load(Ordering::SeqCst) { return; }
+                if frag_idx > 0 {
+                    log(&domain, &epoch_id_str,
+                        &format!("Waiting {}s before next fragment...", fragment_interval));
+                    for _ in 0..fragment_interval {
+                        if !running.load(Ordering::SeqCst) { return; }
+                        thread::sleep(Duration::from_secs(1));
+                    }
                 }
-            } else {
                 log(&domain, &epoch_id_str,
-                    &format!("All fragments created. Waiting {}s before DPR...", fragment_interval));
-                for _ in 0..fragment_interval {
+                    &format!("Fragment {}/{} - Running fragment command...", frag_idx + 1, num_fragments));
+                let (out, ms) = run_kda_timed(&["fragment", &domain, &epoch_id_str]);
+                print!("  {}", out);
+                write_metric(&domain, &epoch_id_str, &format!("fragment_{}", frag_idx + 1), ms, num_fragments, fah);
+            }
+
+            // Wait until embargo deadline for DPR
+            let now = Instant::now();
+            if now < embargo_deadline {
+                let remaining = (embargo_deadline - now).as_secs();
+                log(&domain, &epoch_id_str,
+                    &format!("All fragments sent. Waiting {}s until embargo for DPR...", remaining));
+                while Instant::now() < embargo_deadline {
                     if !running.load(Ordering::SeqCst) { return; }
                     thread::sleep(Duration::from_secs(1));
                 }
             }
-            continue;
         }
 
         // DPR

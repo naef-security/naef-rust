@@ -28,7 +28,7 @@ COPY --from=builder /build/target/release/kda .
 COPY --from=builder /build/target/release/kda-service .
 COPY --from=builder /build/target/release/dsmtp .
 COPY .env /app/.env
-COPY init_100.json /app/init_100.json
+COPY init_80.json /app/init_80.json
 
 RUN mkdir -p /app/NAEF /app/exchange /app/beacon
 
