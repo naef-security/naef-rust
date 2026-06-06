@@ -288,19 +288,26 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
             continue;
         }
 
-        // KDR
+        // KDR + Fragments + Embargo wait
         if !file_exists(&format!("{}/kdr.txt", epoch_folder)) {
             log(&domain, &epoch_id_str, "Running Key Disclosure Request...");
             let (out, ms) = run_kda_timed(&["kdr", &domain, &epoch_id_str]);
             print!("  {}", out);
             kdr_ms = ms;
             write_metric(&domain, &epoch_id_str, "kdr", ms, num_fragments, fah);
+        }
 
+        // Only proceed with fragments+DPR if KDR exists
+        if file_exists(&format!("{}/kdr.txt", epoch_folder)) && !file_exists(&format!("{}/dpr.txt", epoch_folder)) {
             // Record embargo time: DPR fires exactly epoch_interval after KDR
             let embargo_deadline = Instant::now() + Duration::from_secs(epoch_interval);
 
             // Fragments: spread across the epoch interval
-            for frag_idx in 0..num_fragments {
+            let fdr_count = (0..num_fragments)
+                .filter(|i| file_exists(&format!("{}/fdr_{}.txt", epoch_folder, i + 1)))
+                .count();
+
+            for frag_idx in fdr_count..num_fragments {
                 if !running.load(Ordering::SeqCst) { return; }
                 if frag_idx > 0 {
                     log(&domain, &epoch_id_str,
@@ -328,30 +335,32 @@ fn run_domain(domain: String, epoch_interval: u64, num_fragments: usize, fah: us
                     thread::sleep(Duration::from_secs(1));
                 }
             }
-        }
 
-        // DPR
-        if !file_exists(&format!("{}/dpr.txt", epoch_folder)) {
+            // DPR
             log(&domain, &epoch_id_str, "Running Disclosure Publication Request...");
             let (out, ms) = run_kda_timed(&["dpr", &domain, &epoch_id_str]);
             print!("  {}", out);
             dpr_ms = ms;
-            write_metric(&domain, &epoch_id_str, "dpr", ms, num_fragments, fah);
 
-            let epoch_total_ms = epoch_start.elapsed().as_secs_f64() * 1000.0;
-            write_metric(&domain, &epoch_id_str, "epoch_total", epoch_total_ms, num_fragments, fah);
+            if file_exists(&format!("{}/dpr.txt", epoch_folder)) {
+                write_metric(&domain, &epoch_id_str, "dpr", ms, num_fragments, fah);
+                let epoch_total_ms = epoch_start.elapsed().as_secs_f64() * 1000.0;
+                write_metric(&domain, &epoch_id_str, "epoch_total", epoch_total_ms, num_fragments, fah);
 
-            let global_count = global_completed.fetch_add(1, Ordering::SeqCst) + 1;
-            completed_epochs += 1;
-            log(&domain, &epoch_id_str, &format!(
-                "Epoch disclosure COMPLETE (local={}, global={}/{}) (dpr={:.1}ms, total={:.1}ms)",
-                completed_epochs, global_count, global_target.map(|t| t.to_string()).unwrap_or("∞".to_string()),
-                dpr_ms, epoch_total_ms));
-            if !target_reached {
-                log_domain(&domain, "Maintaining Forward Attribution Horizon...");
-                ensure_fah_epochs(&domain, fah, num_fragments);
+                let global_count = global_completed.fetch_add(1, Ordering::SeqCst) + 1;
+                completed_epochs += 1;
+                log(&domain, &epoch_id_str, &format!(
+                    "Epoch disclosure COMPLETE (local={}, global={}/{}) (dpr={:.1}ms, total={:.1}ms)",
+                    completed_epochs, global_count, global_target.map(|t| t.to_string()).unwrap_or("∞".to_string()),
+                    dpr_ms, epoch_total_ms));
+                if !target_reached {
+                    log_domain(&domain, "Maintaining Forward Attribution Horizon...");
+                    ensure_fah_epochs(&domain, fah, num_fragments);
+                }
+                println!();
+            } else {
+                log(&domain, &epoch_id_str, "DPR failed. Will retry next loop.");
             }
-            println!();
             continue;
         }
 
