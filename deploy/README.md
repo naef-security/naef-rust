@@ -11,7 +11,7 @@ NAEF supports two deployment modes using the same Docker images:
 
 ```
 Server 1 (TEBS)              Server 2 (KDA)              Server 3 (VDA)
-Trusted Beacon               Domain Operator              Verification Authority
+Trusted Beacon               Domain Operator              Verifiable Disclosure Authority
 
 +--------------+            +--------------+            +--------------+
 |  tebs        |            |  kda-service |            |  vda-service |

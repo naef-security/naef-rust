@@ -9,8 +9,8 @@ NAEF introduces a structured approach to DKIM key lifecycle management through d
 The framework comprises four independent services:
 
 - **TEBS** (Trusted Epoch Beacon Service) -- Generates publicly verifiable beacon values that anchor the temporal progression of epochs.
-- **KDA** (Key Disclosure Authority) -- Manages epoch key generation, fragmentation, and disclosure for email-sending domains.
-- **VDA** (Verification and Disclosure Authority) -- Independently verifies key disclosure by decrypting fragments and reconstructing epoch private keys.
+- **KDA** (Key Disclosure Agent) -- Manages epoch key generation, fragmentation, and disclosure for email-sending domains.
+- **VDA** (Verifiable Disclosure Authority) -- Independently verifies key disclosure by decrypting fragments and reconstructing epoch private keys.
 - **DSMTP** (DKIM-Signed Mail Transfer Program) -- Sends DKIM-signed emails using epoch-specific RSA keys via Amazon SES.
 
 ## Architecture
@@ -103,8 +103,8 @@ See `deploy/README.md` for instructions on deploying TEBS, KDA, and VDA on separ
 ### CLI Reference
 
 ```
-./kda        # Key Disclosure Authority commands
-./vda        # Verification and Disclosure Authority commands
+./kda        # Key Disclosure Agent commands
+./vda        # Verifiable Disclosure Authority commands
 ./tebs help  # Trusted Epoch Beacon Service commands
 ./dsmtp      # DKIM-signed email commands
 ```
@@ -113,9 +113,9 @@ See `deploy/README.md` for instructions on deploying TEBS, KDA, and VDA on separ
 
 ```
 src/
-  kda.rs            Key Disclosure Authority
+  kda.rs            Key Disclosure Agent
   kda_service.rs    KDA continuous service with FAH
-  vda.rs            Verification and Disclosure Authority
+  vda.rs            Verifiable Disclosure Authority
   vda_service.rs    VDA continuous service
   tebs.rs           Trusted Epoch Beacon Service
   dsmtp.rs          DKIM-signed email sender
