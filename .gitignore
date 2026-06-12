@@ -2,6 +2,10 @@ target/
 NAEF/
 *.log
 *.csv
+
+# But include campaign run CSVs
+!runs/Campaign1_FragmentCountScaling/*.csv
+!runs/Campaign2_EpochIntervalScaling/*.csv
 *.bin
 *.pem
 .env
@@ -33,3 +37,21 @@ deploy/vda/.env
 # Credentials
 credentials.imp
 *.imp
+
+# Older experimental runs (kept locally, not checked in)
+runs/run1_50domains/
+runs/run2_203domains/
+runs/run3_100domains_fragments/
+runs/run3_120domains/
+runs/run4_203domains_epoch_target/
+runs/run5_20domains_mu10/
+runs/run6_5domains_barrier/
+
+# Deployment-specific shell scripts
+*.sh
+
+# Documentation (managed separately)
+docs/
+
+# All PNG images
+*.png
