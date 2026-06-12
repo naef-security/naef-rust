@@ -70,6 +70,13 @@ The following artifacts are publicly accessible for independent verification aft
 
 Any party with access to the disclosure artifacts and TEBS beacon history can independently reconstruct the epoch private key and verify that the disclosure matches the pre-committed hash.
 
+NAEF additionally exposes two publicly accessible interfaces for real-world deniability:
+
+- **ASQ** (Attribution Status Query): Allows any third party to determine whether a given email message signature remains attributable or has become deniable, without performing any cryptographic verification.
+- **PSG** (Public Signature Generation): Allows any third party to request a valid signature for an arbitrary message under a disclosed domain–epoch pair, without performing cryptographic computations.
+
+After disclosure, signatures under a given epoch are computationally indistinguishable from publicly generated signatures and therefore cannot serve as reliable proof of authorship. The PSG interface demonstrates practical forgeability by producing valid signatures on demand, establishing real-world deniability.
+
 ## Building
 
 ```

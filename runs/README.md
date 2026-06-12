@@ -2,11 +2,11 @@
 
 ## Infrastructure
 
-| Service | Instance Type | vCPUs | Memory | Region |
-|---------|--------------|-------|--------|--------|
-| TEBS | t3.small | 2 | 2 GB | ap-south-1 |
-| KDA | t3.xlarge | 4 | 16 GB | ap-south-1 |
-| VDA | t3.xlarge | 4 | 16 GB | ap-south-1 |
+| Service | Instance Type | vCPUs | Memory |
+|---------|--------------|-------|--------|
+| TEBS | t3.small | 2 | 2 GB |
+| KDA | t3.xlarge | 4 | 16 GB |
+| VDA | t3.xlarge | 4 | 16 GB |
 
 - OS: Ubuntu 22.04 LTS, Linux 6.8 kernel
 - Deployment: Docker containers (Rust 2021 edition, release mode), S3-mediated communication
@@ -77,4 +77,3 @@
 **Directory**: `analysis/`
 
 - `combine_figures.py` — Generates 8-panel combined figure from both campaigns
-- `naef_combined_analysis.png` — Output figure (regenerated from source PNGs)
