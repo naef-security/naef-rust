@@ -1,6 +1,6 @@
 # NAEF: Non-Attributable Email Framework
 
-A reference implementation of the Non-Attributable Email Framework (NAEF), a cryptographic protocol for epoch-based DKIM key management that enables controlled key disclosure for email non-repudiation and deniability.
+NAEF is a deployment-compatible architecture that extends existing DKIM-based systems with a three-plane architecture, i.e., the Mail Delivery Plane, Attribution Control Plane (ACP), and Disclosure Control Plane (DCP). NAEF comprises three independent services: Trusted Epoch Beacon Service (TEBS), Key Disclosure Agent (KDA), and Verifiable Disclosure Authority (VDA). NAEF enables post-expiry cryptographic non-attribution without modifying existing email mechanisms, introduces a key lifecycle management through discrete time epochs. For each epoch, a unique signing key pair is generated and used to sign outgoing emails with epoch-specific keys. Upon epoch conclusion, the private key is disclosed through a verifiable fragmentation and reconstruction protocol, allowing any third party verification.
 
 ## Overview
 
