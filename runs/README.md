@@ -42,6 +42,9 @@
 **Files**:
 - `kda_metrics.csv` — Per-operation KDA timing data
 - `vda_metrics.csv` — Per-operation VDA timing data
+- `epoch_lifecycle_formatted.csv` — End-to-end epoch timing data
+- `init.json` — Domain configuration (100 domains)
+- `build_lifecycle.py` — Builds lifecycle CSV from raw metrics
 - `plot_analysis.py` — Colab-compatible 4-panel analysis script
 
 ---

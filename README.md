@@ -11,15 +11,15 @@ The framework comprises four independent services:
 - **TEBS** (Trusted Epoch Beacon Service) -- Generates publicly verifiable beacon values that anchor the temporal progression of epochs.
 - **KDA** (Key Disclosure Agent) -- Manages epoch key generation, fragmentation, and disclosure for email-sending domains.
 - **VDA** (Verifiable Disclosure Authority) -- Independently verifies key disclosure by decrypting fragments and reconstructing epoch private keys.
-- **DSMTP** (DKIM-Signed Mail Transfer Program) -- Sends DKIM-signed emails using epoch-specific RSA keys via Amazon SES.
+- **DSMTP** (DKIM-Signed Mail Transfer Program) -- Sends DKIM-signed emails using epoch-specific RSA keys via Amazon Simple Email Service (SES).
 
 ## Architecture
 
 ```
 TEBS                    KDA                         VDA
-(Beacon Service)        (Domain Operator)           (Verification Authority)
+(Beacon Service)        (Domain Operator)           (Verifiable Disclosure Authority)
                                                     
-  beacon log ---------> fragment encryption         
+  beacon value -------> fragment encryption         
                         key derivation (VRF)        
                                                     
                         EPR: Epoch key generation   
@@ -58,6 +58,18 @@ TEBS                    KDA                         VDA
 - **Per-Domain Multi-Epoch**: Supports multiple domains with independent epoch intervals, fragment counts, and FAH values.
 - **Verified DKIM Signing**: Produces DKIM signatures (rsa-sha256, relaxed/simple) that pass verification at major email providers.
 
+## Public Interfaces for Verification
+
+The following artifacts are publicly accessible for independent verification after an epoch's embargo period concludes:
+
+- **TEBS Beacon Log**: Signed beacon values with timestamps, verifiable via the TEBS public key.
+- **Epoch Commitment (KDR)**: SHA3-256 hash commitment published before fragment disclosure begins.
+- **Encrypted Fragments (FDR)**: AES-256-CBC encrypted key fragments with associated beacon records.
+- **Disclosure Publication (DPR)**: Final beacon value and fragment permutation order enabling reconstruction.
+- **Reconstructed Private Key**: The full DKIM private key, verifiable against the original public key and commitment.
+
+Any party with access to the disclosure artifacts and TEBS beacon history can independently reconstruct the epoch private key and verify that the disclosure matches the pre-committed hash.
+
 ## Building
 
 ```
@@ -69,7 +81,7 @@ Binaries are produced in `target/release/`:
 
 ## Configuration
 
-Copy `.env.example` to `.env` and configure Amazon SES credentials:
+Copy `.env.example` to `.env` and configure Amazon Simple Email Service (SES) credentials:
 
 ```
 cp .env.example .env
